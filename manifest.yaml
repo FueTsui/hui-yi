@@ -1,0 +1,48 @@
+name: hui-yi
+description: Manage a file-based cold-memory archive under memory/cold/.
+required_paths:
+  - path: memory/cold/
+    access: read_write
+    description: Cold memory archive — notes, index, metadata, retrieval log
+  - path: memory/heartbeat-state.json
+    access: read_write
+    description: Heartbeat state with coldMemory maintenance metadata
+  - path: skills/hui-yi/bridge/
+    access: read_write
+    description: Bridge module state, config and log files
+  - path: memory/cold/
+    access: read_write
+    description: Cold memory archive — notes, index, metadata, retrieval log
+  - path: memory/heartbeat-state.json
+    access: read_write
+    description: Heartbeat state with coldMemory maintenance metadata
+creates_files: true
+modifies_files: true
+has_scripts: true
+scripts:
+  - path: scripts/common.py
+    description: Shared helper layer for path resolution, heading/date parsing, tags payload loading, and encoding-safe reads
+  - path: scripts/create.py
+    description: Create a new cold memory note with Ebbinghaus defaults (interval_days 1, next_review tomorrow, auto-rebuild)
+  - path: scripts/validate.py
+    description: Validate all notes against the schema; cross-validate tags.json file references
+  - path: scripts/search.py
+    description: Search cold-memory metadata by keyword or short query; --full-text also searches note bodies
+  - path: scripts/rebuild.py
+    description: Rebuild index.md and tags.json from note files
+  - path: scripts/decay.py
+    description: Cool stale notes using verification and review age; --rebuild syncs tags.json in one step
+  - path: scripts/cool.py
+    description: Scan daily notes and update coldMemory heartbeat state
+  - path: scripts/review.py
+    description: >
+      due: list notes due for review.
+      session: interactive batch review with y/n/s/q feedback, Ebbinghaus REVIEW_LADDER, graduation.
+      resurface: rank resurfacing candidates from query/context/stdin.
+      feedback: single-note recall feedback (accepts slug, title, or keywords).
+  - path: scripts/scheduler.py
+    description: Timed-recall selector driven by schedule config with cooldown, dedupe, and quiet-hours filters; --preview bypasses normal gating for debug inspection
+  - path: bridge/bridge.py
+    description: Light bridge layer that runs the scheduler, applies deliveryPolicy (maxCandidates, cooldowns, quietHours), and optionally delivers via logOnly/stdout/file/message
+  - path: scripts/smoke_test.py
+    description: Isolated end-to-end smoke harness that bootstraps a temporary cold-memory tree and exercises the core scripts

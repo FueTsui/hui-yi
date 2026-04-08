@@ -1,0 +1,28 @@
+{
+  "enabled": true,
+  "memoryRoot": "memory/cold",
+  "scheduleConfig": "memory/cold/schedule.json",
+  "schedulerScript": "skills/hui-yi/scripts/scheduler.py",
+  "query": "how did we do this before",
+  "statePath": "skills/hui-yi/bridge/bridge-state.json",
+  "pythonBin": "python",
+  "preview": true,
+  "dryRun": false,
+  "delivery": {
+    "mode": "message",
+    "outputPath": "skills/hui-yi/bridge/deliveries.log"
+  },
+  "deliveryPolicy": {
+    "maxCandidates": 3,
+    "minScore": 0.45,
+    "preferScheduleIds": [],
+    "globalCooldownHours": 0,
+    "perScheduleCooldownHours": 0,
+    "maxDeliveriesPerDay": 0,
+    "quietHours": {
+      "enabled": false,
+      "start": "23:00",
+      "end": "08:00"
+    }
+  }
+}
