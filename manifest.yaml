@@ -1,0 +1,43 @@
+name: hui-yi
+version: 1.2.2
+description: Manage a file-based cold-memory archive under memory/cold/.
+required_paths:
+  - path: memory/cold/
+    access: read_write
+    description: Cold memory archive — notes, index, metadata, retrieval log
+  - path: memory/heartbeat-state.json
+    access: read_write
+    description: Heartbeat state with coldMemory maintenance metadata
+  - path: skills/hui-yi/bridge/
+    access: read_write
+    description: Bridge module state, config and log files
+creates_files: true
+modifies_files: true
+has_scripts: true
+scripts:
+  - path: scripts/common.py
+    description: Shared helper layer for path resolution, heading/date parsing, tags payload loading, encoding-safe reads, and repetition-signal helpers
+  - path: scripts/create.py
+    description: Create a new cold memory note with Ebbinghaus defaults, initial session activation markers, and auto-rebuild
+  - path: scripts/validate.py
+    description: Validate all notes against the schema, including session-signal consistency; cross-validate tags.json file references
+  - path: scripts/search.py
+    description: Search cold-memory metadata by keyword or short query; --full-text also searches note bodies
+  - path: scripts/rebuild.py
+    description: Rebuild index.md and tags.json from note files, including session-signal metadata
+  - path: scripts/decay.py
+    description: Light maintenance helper for stale notes; keeps overdue reviews due now and should not override repetition-driven reinforcement
+  - path: scripts/cool.py
+    description: Scan daily notes and update coldMemory heartbeat state
+  - path: scripts/review.py
+    description: >
+      due: list notes due by time or repeated activation.
+      session: interactive batch review with y/n/s/q feedback, repetition-first reinforcement, Ebbinghaus pacing, and fast reset on failure.
+      resurface: rank resurfacing candidates from query/context/stdin using repetition, relevance, and due pressure.
+      feedback: single-note recall feedback (accepts slug, title, or keywords).
+  - path: scripts/scheduler.py
+    description: Timed reinforcement selector driven by schedule config, repetition-sensitive gating, cooldown, dedupe, and quiet-hours filters; --preview bypasses normal gating for debug inspection
+  - path: bridge/bridge.py
+    description: Light bridge layer that runs the scheduler, applies deliveryPolicy (maxCandidates, cooldowns, quietHours), and optionally delivers via logOnly/stdout/file/message
+  - path: scripts/smoke_test.py
+    description: Isolated end-to-end smoke harness that bootstraps a temporary cold-memory tree and exercises the core scripts
