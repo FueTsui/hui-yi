@@ -10,14 +10,7 @@
   "dryRun": false,
   "delivery": {
     "mode": "file",
-    "outputPath": "skills/hui-yi/bridge/deliveries.log",
-    "channel": "feishu",
-    "target": "",
-    "senderCommand": "",
-    "adapter": {
-      "type": "command",
-      "command": ""
-    }
+    "outputPath": "skills/hui-yi/bridge/deliveries.log"
   },
   "deliveryPolicy": {
     "maxCandidates": 3,

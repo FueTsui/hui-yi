@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const FALLBACK_WORKSPACE_DIR = "C:\\Users\\fuetsui\\.openclaw\\workspace";
+const FALLBACK_WORKSPACE_DIR = process.env.OPENCLAW_WORKSPACE_DIR || process.cwd();
 const HOOK_VERSION = "2026-04-13-skill-hit-priority-v4";
 const MAX_LOG_BYTES = 256 * 1024;
 const KEEP_LOG_BYTES = 128 * 1024;

@@ -1,43 +1,53 @@
 name: hui-yi
-version: 1.2.2
+version: 1.2.3
 description: Manage a file-based cold-memory archive under memory/cold/.
 required_paths:
   - path: memory/cold/
     access: read_write
-    description: Cold memory archive — notes, index, metadata, retrieval log
+    description: Cold memory archive
   - path: memory/heartbeat-state.json
     access: read_write
-    description: Heartbeat state with coldMemory maintenance metadata
+    description: Heartbeat state with coldMemory metadata
   - path: skills/hui-yi/bridge/
     access: read_write
-    description: Bridge module state, config and log files
+    description: Bridge module state and local outputs
 creates_files: true
 modifies_files: true
 has_scripts: true
 scripts:
   - path: scripts/common.py
-    description: Shared helper layer for path resolution, heading/date parsing, tags payload loading, encoding-safe reads, and repetition-signal helpers
+    description: Shared helpers
   - path: scripts/create.py
-    description: Create a new cold memory note with Ebbinghaus defaults, initial session activation markers, and auto-rebuild
+    description: Create a cold memory note
   - path: scripts/validate.py
-    description: Validate all notes against the schema, including session-signal consistency; cross-validate tags.json file references
+    description: Validate notes and metadata
   - path: scripts/search.py
-    description: Search cold-memory metadata by keyword or short query; --full-text also searches note bodies
+    description: Search metadata and note text
   - path: scripts/rebuild.py
-    description: Rebuild index.md and tags.json from note files, including session-signal metadata
+    description: Rebuild index.md and tags.json
   - path: scripts/decay.py
-    description: Light maintenance helper for stale notes; keeps overdue reviews due now and should not override repetition-driven reinforcement
+    description: Light maintenance helper
   - path: scripts/cool.py
-    description: Scan daily notes and update coldMemory heartbeat state
+    description: Cooling and heartbeat stats helper
   - path: scripts/review.py
-    description: >
-      due: list notes due by time or repeated activation.
-      session: interactive batch review with y/n/s/q feedback, repetition-first reinforcement, Ebbinghaus pacing, and fast reset on failure.
-      resurface: rank resurfacing candidates from query/context/stdin using repetition, relevance, and due pressure.
-      feedback: single-note recall feedback (accepts slug, title, or keywords).
+    description: Review, resurface, feedback, and session flows
   - path: scripts/scheduler.py
-    description: Timed reinforcement selector driven by schedule config, repetition-sensitive gating, cooldown, dedupe, and quiet-hours filters; --preview bypasses normal gating for debug inspection
-  - path: bridge/bridge.py
-    description: Light bridge layer that runs the scheduler, applies deliveryPolicy (maxCandidates, cooldowns, quietHours), and optionally delivers via logOnly/stdout/file/message
-  - path: scripts/smoke_test.py
-    description: Isolated end-to-end smoke harness that bootstraps a temporary cold-memory tree and exercises the core scripts
+    description: Timed reinforcement selector
+  - path: scripts/scoring.py
+    description: Shared scoring logic
+  - path: scripts/feedback_core.py
+    description: Shared feedback and state transition logic
+  - path: scripts/signal_detect.py
+    description: Detect signal candidates from context
+  - path: scripts/signal_apply.py
+    description: Apply signal activation to a note
+  - path: scripts/signal_pipeline.py
+    description: Detect and optionally write signal activations
+  - path: scripts/signal_contract.py
+    description: Shared signal and hook contract helpers
+  - path: scripts/openclaw_signal_hook.py
+    description: OpenClaw-facing signal hook adapter
+  - path: scripts/openclaw_runtime_probe.py
+    description: Workspace-side runtime probe
+  - path: scripts/install_hook.py
+    description: Install bundled Hui-Yi hook template

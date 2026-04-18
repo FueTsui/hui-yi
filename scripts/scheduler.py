@@ -19,8 +19,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from review import load_context_text, load_tags, parse_date, read_text_fallback, resurfacing_priority
-from common import DEFAULT_MEMORY_ROOT, WORKSPACE_ROOT, repetition_signal, load_json
+from signal_detect import load_context_text
+from review import load_tags
+from scoring import resurfacing_priority
+from common import DEFAULT_MEMORY_ROOT, parse_date, read_text_fallback, repetition_signal, resolve_memory_root as common_resolve_memory_root, load_json
 
 
 DEFAULT_CONFIG_PATH = DEFAULT_MEMORY_ROOT / "schedule.json"
@@ -28,10 +30,7 @@ IMPORTANCE_ORDER = {"low": 1, "medium": 2, "high": 3}
 
 
 def resolve_memory_root(arg: str | None) -> Path:
-    if arg:
-        candidate = Path(arg)
-        return candidate if candidate.is_absolute() else (Path.cwd() / candidate).resolve()
-    return DEFAULT_MEMORY_ROOT
+    return common_resolve_memory_root(arg, default=DEFAULT_MEMORY_ROOT)
 
 
 def parse_time_hhmm(value: str | None) -> tuple[int, int] | None:
@@ -60,40 +59,9 @@ def schedule_matches_now(schedule: dict, now: datetime) -> bool:
     return False
 
 
-def recent_log_hits(memory_root: Path, note_name: str, hours: int) -> int:
-    if hours <= 0:
-        return 0
-    log_path = memory_root / "retrieval-log.md"
+def _iter_recent_log_datetimes(log_path: Path):
     if not log_path.exists():
-        return 0
-    threshold = datetime.now().astimezone() - timedelta(hours=hours)
-    hits = 0
-    # Use the multi-encoding fallback: a retrieval-log written on a Chinese Windows
-    # system may be GB18030/cp936; hardcoding utf-8 would crash the entire scheduler.
-    for line in read_text_fallback(log_path).splitlines():
-        if note_name not in line or not line.startswith("|"):
-            continue
-        parts = [part.strip() for part in line.strip("|").split("|")]
-        if len(parts) < 5:
-            continue
-        try:
-            line_date = datetime.fromisoformat(parts[0]).date()
-            line_dt = datetime.combine(line_date, datetime.min.time()).astimezone()
-        except Exception:
-            continue
-        if line_dt >= threshold:
-            hits += 1
-    return hits
-
-
-def recent_total_hits(memory_root: Path, hours: int) -> int:
-    if hours <= 0:
-        return 0
-    log_path = memory_root / "retrieval-log.md"
-    if not log_path.exists():
-        return 0
-    threshold = datetime.now().astimezone() - timedelta(hours=hours)
-    hits = 0
+        return
     for line in read_text_fallback(log_path).splitlines():
         if not line.startswith("|"):
             continue
@@ -102,12 +70,29 @@ def recent_total_hits(memory_root: Path, hours: int) -> int:
             continue
         try:
             line_date = datetime.fromisoformat(parts[0]).date()
-            line_dt = datetime.combine(line_date, datetime.min.time()).astimezone()
+            yield line, datetime.combine(line_date, datetime.min.time()).astimezone()
         except Exception:
             continue
-        if line_dt >= threshold:
+
+
+def recent_log_hits(memory_root: Path, note_name: str, hours: int) -> int:
+    if hours <= 0:
+        return 0
+    log_path = memory_root / "retrieval-log.md"
+    threshold = datetime.now().astimezone() - timedelta(hours=hours)
+    hits = 0
+    for line, line_dt in _iter_recent_log_datetimes(log_path):
+        if note_name in line and line_dt >= threshold:
             hits += 1
     return hits
+
+
+def recent_total_hits(memory_root: Path, hours: int) -> int:
+    if hours <= 0:
+        return 0
+    log_path = memory_root / "retrieval-log.md"
+    threshold = datetime.now().astimezone() - timedelta(hours=hours)
+    return sum(1 for _, line_dt in _iter_recent_log_datetimes(log_path) if line_dt >= threshold)
 
 
 def importance_ok(note: dict, minimum: str) -> bool:
@@ -322,7 +307,7 @@ def main() -> int:
     args = parser.parse_args()
 
     memory_root = resolve_memory_root(args.memory_root)
-    config_path = Path(args.config).resolve() if args.config else DEFAULT_CONFIG_PATH
+    config_path = common_resolve_memory_root(args.config, default=DEFAULT_CONFIG_PATH) if args.config else DEFAULT_CONFIG_PATH
     config = load_json(config_path)
     now = datetime.now().astimezone()
     mode = "preview" if args.preview else "normal"

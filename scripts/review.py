@@ -10,40 +10,31 @@ Commands:
 from __future__ import annotations
 
 import argparse
-import math
-import re
-import sys
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
+import sys
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from common import (
-    DEFAULT_MEMORY_ROOT,
+    load_python_module,
     load_tags_payload,
+    memory_strength,
     note_file_path,
     parse_date,
     parse_heading_value,
-    parse_review_metric,
-    read_text_fallback,
     repetition_signal,
     resolve_memory_root,
     save_json,
 )
-from signal_detect import detect_match, load_context_text
+from feedback_core import DORMANT_INTERVAL_DAYS, write_note_feedback
+from scoring import resurfacing_priority
+from signal_detect import load_context_text
 from signal_pipeline import apply_candidates
 
-DEFAULT_INTERVAL_DAYS = 1
-REVIEW_LADDER = [1, 2, 4, 7, 15, 30, 60]
-GRADUATION_MIN_REVIEWS = 7
-GRADUATION_MIN_SUCCESS_RATE = 0.8
-GRADUATION_INTERVAL_DAYS = {"high": 180, "medium": 120, "low": 90}
-DORMANT_INTERVAL_DAYS = {"high": 180, "medium": 270, "low": 365}
-ADAPTIVE_GROWTH = {"high": 1.35, "medium": 1.5, "low": 1.7}
-STRENGTH_RISK_FACTOR = {"weak": 1.08, "normal": 1.0, "strong": 0.78}
-IMPORTANCE_WEIGHT = {"high": 3.0, "medium": 2.0, "low": 1.0}
+
 def load_tags(memory_root: Path) -> dict:
     return load_tags_payload(memory_root)
 
@@ -51,275 +42,6 @@ def load_tags(memory_root: Path) -> dict:
 def save_tags(memory_root: Path, payload: dict) -> None:
     payload.setdefault("_meta", {})["updated"] = date.today().isoformat()
     save_json(memory_root / "tags.json", payload)
-
-
-def replace_heading_bullet(text: str, heading: str, new_value: str) -> str:
-    pattern = re.compile(
-        rf"(^## {re.escape(heading)}\s*$\n)(.*?)(?=^## |\Z)",
-        re.MULTILINE | re.DOTALL,
-    )
-    if pattern.search(text):
-        return pattern.sub(rf"\1- {new_value}\n\n", text, count=1)
-    return text + f"\n## {heading}\n- {new_value}\n"
-
-
-def replace_review_metric(text: str, key: str, new_value: int) -> str:
-    block_pattern = re.compile(r"(^## Review cadence\s*$)(.*?)(^(?:## |\Z))", re.MULTILINE | re.DOTALL)
-    match = block_pattern.search(text)
-    if not match:
-        insertion = (
-            f"\n## Review cadence\n"
-            f"- interval_days: {DEFAULT_INTERVAL_DAYS}\n"
-            f"- review_count: 0\n"
-            f"- review_success: 0\n"
-            f"- review_fail: 0\n"
-            f"- retrieval_count: 0\n"
-            f"- reinforcement_count: 0\n"
-        )
-        text += insertion
-        match = block_pattern.search(text)
-        if not match:
-            return text
-    block = match.group(2)
-    metric_pattern = re.compile(rf"(^-\s*{re.escape(key)}\s*:\s*)(\d+)(\s*$)", re.MULTILINE)
-    if metric_pattern.search(block):
-        block = metric_pattern.sub(rf"\g<1>{new_value}\g<3>", block, count=1)
-    else:
-        if not block.endswith("\n"):
-            block += "\n"
-        block += f"- {key}: {new_value}\n"
-    return text[: match.start(2)] + block + text[match.end(2) :]
-
-
-def append_retrieval_log(log_path: Path, row: str) -> None:
-    header = "# Retrieval Log\n\n| Date | Query | Matched | Useful | Action |\n|---|---|---|---|---|\n"
-    if not log_path.exists():
-        log_path.write_text(header, encoding="utf-8")
-    current = read_text_fallback(log_path)
-    if not current.endswith("\n"):
-        current += "\n"
-    current += row + "\n"
-    log_path.write_text(current, encoding="utf-8")
-
-
-def forgetting_risk(note: dict, today: date) -> tuple[float, int]:
-    next_review = parse_date(note.get("next_review"))
-    review = note.get("review") if isinstance(note.get("review"), dict) else {}
-    interval_days = max(1, int(review.get("interval_days", DEFAULT_INTERVAL_DAYS) or DEFAULT_INTERVAL_DAYS))
-    strength = memory_strength(note)
-    anchor = (
-        parse_date(note.get("last_reviewed"))
-        or parse_date(note.get("last_seen"))
-        or parse_date(note.get("last_verified"))
-    )
-    if next_review and anchor is None:
-        anchor = next_review - timedelta(days=interval_days)
-    if anchor is None:
-        return 0.0, 0
-
-    elapsed_days = max(0, (today - anchor).days)
-    progress = elapsed_days / max(interval_days, 1)
-    risk = 1.0 - math.exp(-1.2 * progress)
-
-    overdue = 0
-    if next_review:
-        overdue = (today - next_review).days
-        if overdue > 0:
-            overdue_ratio = min(2.0, overdue / max(interval_days, 1))
-            risk = min(1.0, risk + 0.15 + 0.15 * overdue_ratio)
-
-    risk *= STRENGTH_RISK_FACTOR.get(strength, 1.0)
-    return max(0.05, min(risk, 1.0)), overdue
-
-
-def due_pressure(note: dict, today: date) -> tuple[float, int]:
-    risk_value, overdue = forgetting_risk(note, today)
-    next_review = parse_date(note.get("next_review"))
-    review = note.get("review") if isinstance(note.get("review"), dict) else {}
-    interval_days = max(1, int(review.get("interval_days", DEFAULT_INTERVAL_DAYS) or DEFAULT_INTERVAL_DAYS))
-    if not next_review:
-        return risk_value, overdue
-    days_until = (next_review - today).days
-    if days_until <= 0:
-        overdue_ratio = min(1.0, abs(days_until) / max(interval_days, 1))
-        return min(1.0, 0.65 + 0.35 * overdue_ratio), overdue
-    pre_due_window = max(1, interval_days // 2)
-    if days_until <= pre_due_window:
-        edge = 1.0 - (days_until / max(pre_due_window, 1))
-        return max(risk_value, 0.25 + 0.45 * edge), overdue
-    return min(risk_value, 0.20), overdue
-
-
-def resurfacing_priority(note: dict, today: date, query: str | None) -> tuple[float, dict]:
-    importance_value = IMPORTANCE_WEIGHT.get(note.get("importance", "medium"), 2.0) / 3.0
-    due_value, overdue = due_pressure(note, today)
-    if query:
-        relevance_value, meta = detect_match(note, query)
-        raw_relevance = meta.get("raw_score", 0.0)
-    else:
-        relevance_value, meta = 0.0, {"matched_fields": [], "overlap_terms": [], "raw_score": 0.0, "confidence": "none"}
-        raw_relevance = 0.0
-    repeat_value = repetition_signal(note, today)
-    strength = memory_strength(note)
-    strength_value = {"weak": 1.0, "normal": 0.75, "strong": 0.55}.get(strength, 0.75)
-
-    score = (
-        0.40 * repeat_value
-        + 0.25 * relevance_value
-        + 0.15 * due_value
-        + 0.10 * importance_value
-        + 0.10 * strength_value
-    )
-    meta.update(
-        {
-            "overdue_days": overdue,
-            "raw_relevance": raw_relevance,
-            "relevance_value": relevance_value,
-            "due_pressure": due_value,
-            "forgetting_risk": due_value,
-            "importance_value": importance_value,
-            "repetition_signal": repeat_value,
-            "memory_strength": strength,
-            "strength_value": strength_value,
-        }
-    )
-    return score, meta
-
-
-def memory_strength(note: dict) -> str:
-    review = note.get("review") if isinstance(note.get("review"), dict) else {}
-    interval_days = int(review.get("interval_days", DEFAULT_INTERVAL_DAYS) or DEFAULT_INTERVAL_DAYS)
-    retrieval_count = int(review.get("retrieval_count", 0) or 0)
-    reinforcement_count = int(review.get("reinforcement_count", 0) or 0)
-    review_success = int(review.get("review_success", 0) or 0)
-    state = str(note.get("state", "cold"))
-
-    if (
-        reinforcement_count >= 3
-        or retrieval_count >= 5
-        or (review_success >= 4 and interval_days >= 15)
-        or (state == "hot" and review_success >= 3)
-    ):
-        return "strong"
-    if reinforcement_count >= 1 or retrieval_count >= 2 or review_success >= 2:
-        return "normal"
-    return "weak"
-
-
-def next_success_interval(interval_days: int, importance: str) -> int:
-    current = max(1, interval_days)
-    for step in REVIEW_LADDER:
-        if current < step:
-            return step
-    growth = ADAPTIVE_GROWTH.get(importance, ADAPTIVE_GROWTH["medium"])
-    return max(REVIEW_LADDER[-1], int(math.ceil(current * growth)))
-
-
-def relearning_interval(interval_days: int) -> int:
-    return 1 if interval_days <= REVIEW_LADDER[4] else 2
-
-
-def _compute_next_state(text: str, note: dict, useful: str, today: date) -> tuple[str, int, int, int, int, int, int, str]:
-    interval_days = parse_review_metric(text, "interval_days", DEFAULT_INTERVAL_DAYS)
-    review_count = parse_review_metric(text, "review_count", 0) + 1
-    review_success = parse_review_metric(text, "review_success", 0)
-    review_fail = parse_review_metric(text, "review_fail", 0)
-    retrieval_count = parse_review_metric(text, "retrieval_count", 0) + 1
-    reinforcement_count = parse_review_metric(text, "reinforcement_count", 0)
-    state = parse_heading_value(text, "Memory state") or note.get("state", "cold")
-    importance = note.get("importance", "medium")
-
-    if useful == "yes":
-        review_success += 1
-        reinforcement_count += 1
-        interval_days = next_success_interval(interval_days, importance)
-        if state in {"cold", "dormant"}:
-            state = "warm"
-        elif state == "warm" and (importance == "high" or reinforcement_count >= 3):
-            state = "hot"
-    else:
-        review_fail += 1
-        interval_days = relearning_interval(interval_days)
-        if state == "hot":
-            state = "warm"
-        else:
-            state = "cold"
-
-    success_rate = review_success / max(review_count, 1)
-    graduation_interval = GRADUATION_INTERVAL_DAYS.get(importance, GRADUATION_INTERVAL_DAYS["medium"])
-    dormant_interval = DORMANT_INTERVAL_DAYS.get(importance, DORMANT_INTERVAL_DAYS["medium"])
-    if (
-        state != "dormant"
-        and useful == "yes"
-        and reinforcement_count >= 3
-        and review_success >= GRADUATION_MIN_REVIEWS
-        and success_rate >= GRADUATION_MIN_SUCCESS_RATE
-        and interval_days >= graduation_interval
-    ):
-        state = "dormant"
-        interval_days = dormant_interval
-
-    next_review = (today + timedelta(days=interval_days)).isoformat()
-    return state, interval_days, review_count, review_success, review_fail, retrieval_count, reinforcement_count, next_review
-
-
-def _write_note_feedback(
-    note_path: Path,
-    note: dict,
-    text: str,
-    useful: str,
-    today: date,
-    log_path: Path | None = None,
-    query: str | None = None,
-    action: str | None = None,
-) -> tuple[str, int, str]:
-    (
-        state,
-        interval_days,
-        review_count,
-        review_success,
-        review_fail,
-        retrieval_count,
-        reinforcement_count,
-        next_review,
-    ) = _compute_next_state(text, note, useful, today)
-    today_str = today.isoformat()
-
-    new_text = replace_review_metric(text, "interval_days", interval_days)
-    new_text = replace_review_metric(new_text, "review_count", review_count)
-    new_text = replace_review_metric(new_text, "review_success", review_success)
-    new_text = replace_review_metric(new_text, "review_fail", review_fail)
-    new_text = replace_review_metric(new_text, "retrieval_count", retrieval_count)
-    new_text = replace_review_metric(new_text, "reinforcement_count", reinforcement_count)
-    new_text = replace_heading_bullet(new_text, "Last reviewed", today_str)
-    new_text = replace_heading_bullet(new_text, "Last seen", today_str)
-    new_text = replace_heading_bullet(new_text, "Next review", next_review)
-    new_text = replace_heading_bullet(new_text, "Memory state", state)
-    note_path.write_text(new_text, encoding="utf-8")
-
-    note["state"] = state
-    note["last_reviewed"] = today_str
-    note["last_seen"] = today_str
-    note["next_review"] = next_review
-    if not isinstance(note.get("review"), dict):
-        note["review"] = {}
-    note["review"]["interval_days"] = interval_days
-    note["review"]["review_count"] = review_count
-    note["review"]["review_success"] = review_success
-    note["review"]["review_fail"] = review_fail
-    note["review"]["retrieval_count"] = retrieval_count
-    note["review"]["reinforcement_count"] = reinforcement_count
-    note["strength"] = memory_strength(note)
-
-    if log_path is not None:
-        _q = query or note.get("title") or "session review"
-        _a = action or ("reinforced note" if useful == "yes" else "weakened note")
-        append_retrieval_log(
-            log_path,
-            f"| {today_str} | {_q} | {Path(note.get('path', '')).name} | {useful} | {_a} |",
-        )
-
-    return state, interval_days, next_review
 
 
 def cmd_due(args: argparse.Namespace) -> int:
@@ -440,12 +162,8 @@ def apply_session_signal(
     if not session_key:
         return
 
-    import importlib.util
-
     signal_apply_path = Path(__file__).with_name("signal_apply.py")
-    spec = importlib.util.spec_from_file_location("signal_apply", signal_apply_path)
-    signal_apply_mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(signal_apply_mod)
+    signal_apply_mod = load_python_module(signal_apply_path, "signal_apply")
 
     original_argv = sys.argv
     try:
@@ -517,7 +235,7 @@ def cmd_feedback(args: argparse.Namespace) -> int:
         return 1
 
     text = note_path.read_text(encoding="utf-8")
-    state, interval_days, next_review = _write_note_feedback(
+    state, interval_days, next_review = write_note_feedback(
         note_path,
         matched,
         text,
@@ -639,11 +357,12 @@ def cmd_session(args: argparse.Namespace) -> int:
                 break
             if raw in ("y", "n"):
                 useful = "yes" if raw == "y" else "no"
-                state, interval_days, next_review = _write_note_feedback(
+                state, interval_days, next_review = write_note_feedback(
                     note_path, note, text, useful, today, log_path=log_path
                 )
                 save_tags(memory_root, payload)
 
+                note["strength"] = memory_strength(note)
                 graduated = state == "dormant" and interval_days >= min(DORMANT_INTERVAL_DAYS.values())
                 strength = note.get("strength", memory_strength(note))
                 if graduated:

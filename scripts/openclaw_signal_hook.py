@@ -13,7 +13,6 @@ Its job is only:
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -22,19 +21,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from common import resolve_memory_root
-
-
-def build_session_key(channel: str, scope_type: str, scope_id: str, thread_id: str | None = None) -> str:
-    tail = f"thread:{thread_id}" if thread_id else "main"
-    return f"{channel}:{scope_type}:{scope_id}:{tail}"
+from common import load_python_module, resolve_memory_root
+from signal_contract import build_session_key, resolve_trigger_defaults
 
 
 def call_signal_pipeline(memory_root: Path, query: str, session_key: str, *, limit: int, min_relevance: float, min_confidence: str, apply: bool) -> dict:
     pipeline_path = Path(__file__).with_name("signal_pipeline.py")
-    spec = importlib.util.spec_from_file_location("signal_pipeline", pipeline_path)
-    pipeline_mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(pipeline_mod)
+    pipeline_mod = load_python_module(pipeline_path, "signal_pipeline")
 
     original_argv = sys.argv
     try:
@@ -90,12 +83,7 @@ def main() -> int:
     parser.add_argument("--dry-run", action="store_true", help="detect only; do not apply weak activation")
     args = parser.parse_args()
 
-    trigger_defaults = {
-        "skill_hit": {"min_relevance": 0.30, "min_confidence": "medium", "limit": 3},
-        "heuristic_fallback": {"min_relevance": 0.55, "min_confidence": "high", "limit": 2},
-        "manual_probe": {"min_relevance": 0.30, "min_confidence": "medium", "limit": 3},
-    }
-    defaults = trigger_defaults[args.trigger_source]
+    defaults = resolve_trigger_defaults(args.trigger_source)
 
     memory_root = resolve_memory_root(args.memory_root)
     session_key = build_session_key(args.channel, args.scope_type, args.scope_id, args.thread_id)

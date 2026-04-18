@@ -12,7 +12,7 @@ import shutil
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from common import DEFAULT_HEARTBEAT_PATH, DEFAULT_MEMORY_ROOT, WORKSPACE_ROOT, load_json, save_json
+from common import DEFAULT_HEARTBEAT_PATH, DEFAULT_MEMORY_ROOT, WORKSPACE_ROOT, load_json, memory_strength, save_json
 
 SKIP = {"index.md", "retrieval-log.md", "_template.md"}
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -22,23 +22,6 @@ DEFAULT_STATE = "cold"
 VALID_IMPORTANCE = {"high", "medium", "low"}
 VALID_STATE = {"hot", "warm", "cold", "dormant"}
 VALID_CONFIDENCE = {"high", "medium", "low"}
-
-
-def memory_strength(review: dict, state: str) -> str:
-    interval_days = int(review.get("interval_days", DEFAULT_INTERVAL_DAYS) or DEFAULT_INTERVAL_DAYS)
-    retrieval_count = int(review.get("retrieval_count", 0) or 0)
-    reinforcement_count = int(review.get("reinforcement_count", 0) or 0)
-    review_success = int(review.get("review_success", 0) or 0)
-    if (
-        reinforcement_count >= 3
-        or retrieval_count >= 5
-        or (review_success >= 4 and interval_days >= 15)
-        or (state == "hot" and review_success >= 3)
-    ):
-        return "strong"
-    if reinforcement_count >= 1 or retrieval_count >= 2 or review_success >= 2:
-        return "normal"
-    return "weak"
 
 
 def resolve_memory_root(arg: str | None) -> Path:
@@ -217,7 +200,7 @@ def parse_note(path: Path, memory_root: Path) -> dict:
         "next_review": next_review,
         "review": review,
         "session_signals": session_signals,
-        "strength": memory_strength(review, state),
+        "strength": memory_strength({"review": review, "state": state}, DEFAULT_INTERVAL_DAYS),
         "last_verified": last_verified or "unknown",
         "updated": updated,
     }

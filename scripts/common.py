@@ -4,7 +4,9 @@ from __future__ import annotations
 import json
 import re
 from datetime import date, datetime, timedelta
+import importlib.util
 from pathlib import Path
+import sys
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -30,6 +32,9 @@ DEFAULT_SESSION_SIGNALS = {
     "consecutive_session_count": 0,
     "last_activated": None,
 }
+DEFAULT_INTERVAL_DAYS = 1
+REVIEW_LADDER = [1, 2, 4, 7, 15, 30, 60]
+STRENGTH_RISK_FACTOR = {"weak": 1.08, "normal": 1.0, "strong": 0.78}
 
 
 def resolve_path(value: str | Path, base: Path | None = None) -> Path:
@@ -230,3 +235,44 @@ def extract_notes_list(payload: dict | list | object) -> list[dict]:
     if isinstance(payload, list):
         return [item for item in payload if isinstance(item, dict)]
     return []
+
+
+def memory_strength(note: dict, default_interval_days: int = DEFAULT_INTERVAL_DAYS) -> str:
+    review = note.get("review") if isinstance(note.get("review"), dict) else {}
+    interval_days = int(review.get("interval_days", default_interval_days) or default_interval_days)
+    retrieval_count = int(review.get("retrieval_count", 0) or 0)
+    reinforcement_count = int(review.get("reinforcement_count", 0) or 0)
+    review_success = int(review.get("review_success", 0) or 0)
+    state = str(note.get("state", "cold"))
+
+    if (
+        reinforcement_count >= 3
+        or retrieval_count >= 5
+        or (review_success >= 4 and interval_days >= 15)
+        or (state == "hot" and review_success >= 3)
+    ):
+        return "strong"
+    if reinforcement_count >= 1 or retrieval_count >= 2 or review_success >= 2:
+        return "normal"
+    return "weak"
+
+
+def load_python_module(module_path: Path, module_name: str):
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load module spec for {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def run_python_script_main(module_path: Path, module_name: str, argv: list[str]) -> int:
+    module = load_python_module(module_path, module_name)
+    if not hasattr(module, "main"):
+        raise AttributeError(f"Module {module_path} has no main()")
+    original_argv = sys.argv
+    try:
+        sys.argv = argv
+        return int(module.main())
+    finally:
+        sys.argv = original_argv

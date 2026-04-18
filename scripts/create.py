@@ -16,13 +16,11 @@ and tags.json (pass --no-rebuild to skip).
 from __future__ import annotations
 
 import argparse
-# subprocess removed – using direct function call for rebuild
-import sys
 from datetime import date, timedelta
 from pathlib import Path
 import re
 
-from common import DEFAULT_MEMORY_ROOT, resolve_memory_root
+from common import resolve_memory_root, run_python_script_main
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -169,26 +167,19 @@ def main() -> int:
     if not args.no_rebuild:
         print()
         # Directly invoke rebuild logic without spawning a subprocess
-        import importlib.util, sys, pathlib
-        rebuild_path = pathlib.Path(__file__).with_name('rebuild.py')
-        spec = importlib.util.spec_from_file_location('rebuild', rebuild_path)
-        rebuild_mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(rebuild_mod)
-        rebuild_main = rebuild_mod.main
-        # Simulate command‑line args for rebuild
-        original_argv = sys.argv
-        try:
-            heartbeat_path = memory_root.parent / "heartbeat-state.json"
-            sys.argv = [
+        rebuild_path = Path(__file__).with_name('rebuild.py')
+        heartbeat_path = memory_root.parent / "heartbeat-state.json"
+        exit_code = run_python_script_main(
+            rebuild_path,
+            "rebuild",
+            [
                 "rebuild.py",
                 "--memory-root",
                 str(memory_root),
                 "--heartbeat-path",
                 str(heartbeat_path),
-            ]
-            exit_code = rebuild_main()
-        finally:
-            sys.argv = original_argv
+            ],
+        )
         if exit_code == 0:
             print("Rebuild completed successfully via direct function call.")
         else:

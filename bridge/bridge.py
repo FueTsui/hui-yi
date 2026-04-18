@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shlex
 import subprocess
 import sys
 from datetime import datetime, timedelta
@@ -77,7 +76,7 @@ def run_scheduler(config: dict, schedule_id: str | None = None) -> dict:
     if config.get("preview", False):
         cmd.append("--preview")
 
-    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=str(WORKSPACE_ROOT))
+    proc = subprocess.run(cmd, capture_output=True, text=True, cwd=str(WORKSPACE_ROOT), encoding="utf-8", errors="replace")
     if proc.returncode != 0:
         raise RuntimeError(proc.stderr.strip() or proc.stdout.strip() or f"scheduler failed: {proc.returncode}")
     return json.loads(proc.stdout)
@@ -254,47 +253,8 @@ def deliver_candidate(candidate: dict, config: dict, delivered_at: str) -> dict:
         payload["outputPath"] = str(output_path)
         return payload
     if mode == "message":
-        adapter = delivery.get("adapter", {}) if isinstance(delivery.get("adapter"), dict) else {}
-        adapter_type = str(adapter.get("type", "command") or "command")
-        sender_command = str(adapter.get("command") or delivery.get("senderCommand", "") or "").strip()
-        if adapter_type != "command":
-            payload["status"] = "skipped"
-            payload["error"] = f"unsupported delivery.adapter.type: {adapter_type}"
-            return payload
-        if not sender_command:
-            payload["status"] = "skipped"
-            payload["error"] = "delivery.adapter.command not configured"
-            return payload
-        try:
-            rendered_command = sender_command.format(
-                message=shlex.quote(str(candidate.get("message", ""))),
-                title=shlex.quote(str(candidate.get("title", ""))),
-                path=shlex.quote(str(candidate.get("path", ""))),
-                channel=shlex.quote(str(delivery.get("channel", ""))),
-                target=shlex.quote(str(delivery.get("target", ""))),
-                schedule_id=shlex.quote(str(candidate.get("scheduleId", ""))),
-            )
-            proc = subprocess.run(
-                rendered_command,
-                capture_output=True,
-                text=True,
-                cwd=str(WORKSPACE_ROOT),
-                shell=True,
-            )
-            if proc.returncode == 0:
-                payload["status"] = "sent"
-                payload["adapter"] = {"type": adapter_type}
-                payload["command"] = rendered_command
-                payload["messageToolResult"] = proc.stdout.strip()
-            else:
-                payload["status"] = "failed"
-                payload["adapter"] = {"type": adapter_type}
-                payload["command"] = rendered_command
-                payload["error"] = proc.stderr.strip() or proc.stdout.strip()
-        except Exception as e:
-            payload["status"] = "error"
-            payload["adapter"] = {"type": adapter_type}
-            payload["exception"] = str(e)
+        payload["status"] = "skipped"
+        payload["error"] = "delivery mode 'message' is not implemented in the local bridge. Use OpenClaw-native messaging at the agent layer instead of shell command adapters."
         return payload
     raise ValueError(f"Unsupported delivery mode: {mode}")
 

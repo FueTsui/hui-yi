@@ -17,6 +17,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from signal_apply import main as signal_apply_main
+from signal_contract import CONFIDENCE_ORDER, candidate_payload
 from signal_detect import load_context_text, detect_match
 from common import load_tags_payload, repetition_signal, resolve_memory_root
 
@@ -46,7 +47,6 @@ def run_apply(note_ref: str, memory_root: Path, session_key: str, strength: str,
 def collect_candidates(memory_root: Path, query_text: str, min_relevance: float, min_confidence: str, limit: int) -> tuple[list[dict], date]:
     payload = load_tags_payload(memory_root)
     notes = payload.get("notes", []) if isinstance(payload.get("notes"), list) else []
-    confidence_order = {"low": 1, "medium": 2, "high": 3}
     today = date.today()
 
     candidates = []
@@ -57,20 +57,11 @@ def collect_candidates(memory_root: Path, query_text: str, min_relevance: float,
         confidence = meta.get("confidence", "none")
         if confidence == "none":
             continue
-        if confidence_order.get(confidence, 0) < confidence_order[min_confidence]:
+        if CONFIDENCE_ORDER.get(confidence, 0) < CONFIDENCE_ORDER[min_confidence]:
             continue
-        candidates.append(
-            {
-                "title": note.get("title"),
-                "path": note.get("path"),
-                "relevance": relevance,
-                "confidence": confidence,
-                "matched_fields": meta.get("matched_fields", []),
-                "overlap_terms": meta.get("overlap_terms", []),
-                "raw_score": meta.get("raw_score", 0.0),
-                "repetition_signal": repetition_signal(note, today),
-            }
-        )
+        candidate = candidate_payload(note, relevance, meta, today)
+        candidate["repetition_signal"] = repetition_signal(note, today)
+        candidates.append(candidate)
 
     candidates.sort(key=lambda item: (item["relevance"], item.get("repetition_signal", 0.0)), reverse=True)
     return candidates[:limit], today

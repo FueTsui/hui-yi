@@ -60,12 +60,12 @@ def main() -> int:
     notes = payload.get("notes", []) if isinstance(payload.get("notes"), list) else []
     matched = find_note(notes, args.note)
     if not matched:
-        print(f"Note not found: {args.note!r}")
+        print(f"Note not found: {args.note!r}", file=sys.stderr)
         return 1
 
     note_path = note_file_path(memory_root, matched)
     if not note_path.exists():
-        print(f"Backing note file missing: {note_path}")
+        print(f"Backing note file missing: {note_path}", file=sys.stderr)
         return 1
 
     activated_day = date.fromisoformat(args.activated_at).isoformat() if args.activated_at else date.today().isoformat()
@@ -75,7 +75,7 @@ def main() -> int:
     dedup_key = f"{args.session_key}|{slugify(Path(note_path).stem)}|{activated_day}|{args.source}"
     history = matched.get("signal_history") if isinstance(matched.get("signal_history"), list) else []
     if dedup_key in history:
-        print(f"SKIP duplicate activation: {matched.get('title')} | {dedup_key}")
+        print(f"SKIP duplicate activation: {matched.get('title')} | {dedup_key}", file=sys.stderr)
         return 0
 
     signals["current_session_hits"] = int(signals.get("current_session_hits", 0) or 0) + 1

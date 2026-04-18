@@ -3,45 +3,24 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
+import sys
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
+from common import load_tags_payload, read_text_fallback, resolve_memory_root
 
-def detect_workspace_root(script_dir: Path) -> Path:
-    skill_root = script_dir.parent
-    if (skill_root / "SKILL.md").exists() and (skill_root / "manifest.yaml").exists():
-        if skill_root.parent.name == "skills":
-            return skill_root.parent.parent
-        return skill_root
-    return script_dir.parents[2]
-
-
-WORKSPACE_ROOT = detect_workspace_root(SCRIPT_DIR)
-DEFAULT_MEMORY_ROOT = WORKSPACE_ROOT / "memory" / "cold"
 STATE_BOOST = {"hot": 0.2, "warm": 0.35, "cold": 0.25, "dormant": 0.05}
 IMPORTANCE_BOOST = {"high": 0.35, "medium": 0.2, "low": 0.05}
 STRENGTH_BOOST = {"strong": 0.25, "normal": 0.1, "weak": 0.0}
 
 
-def resolve_memory_root(arg: str | None) -> Path:
-    if arg:
-        candidate = Path(arg)
-        return candidate if candidate.is_absolute() else (Path.cwd() / candidate).resolve()
-    return DEFAULT_MEMORY_ROOT
-
-
 def load_tags(path: Path) -> list[dict]:
-    if not path.exists():
-        return []
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(data, dict):
-        notes = data.get("notes", [])
-        return notes if isinstance(notes, list) else []
-    if isinstance(data, list):
-        return data
-    return []
+    payload = load_tags_payload(path.parent)
+    notes = payload.get("notes", []) if isinstance(payload, dict) else []
+    return notes if isinstance(notes, list) else []
 
 
 def score_note(note: dict, query_terms: list[str]) -> tuple[float, dict]:
@@ -93,7 +72,7 @@ def search_full_text(memory_root: Path, query_terms: list[str]) -> list[tuple[st
         if path.name in skip:
             continue
         try:
-            lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+            lines = read_text_fallback(path).splitlines()
         except OSError:
             continue
         for lineno, line in enumerate(lines, 1):
@@ -123,7 +102,7 @@ def main() -> int:
     print(f"=== Searching cold memory for: {query_raw} ===\n")
 
     if index_path.exists():
-        lines = index_path.read_text(encoding="utf-8").splitlines()
+        lines = read_text_fallback(index_path).splitlines()
         hits = [(i + 1, line) for i, line in enumerate(lines) if any(term in line.lower() for term in query_terms)]
         if hits:
             print("## index.md matches:")
