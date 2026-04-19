@@ -6,13 +6,20 @@ last_seen, last_reviewed, and next_review.
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 import json
 import shutil
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from common import DEFAULT_HEARTBEAT_PATH, DEFAULT_MEMORY_ROOT, WORKSPACE_ROOT, load_json, memory_strength, save_json
+from core.common import DEFAULT_HEARTBEAT_PATH, DEFAULT_MEMORY_ROOT, WORKSPACE_ROOT, load_json, memory_strength, save_json
 
 SKIP = {"index.md", "retrieval-log.md", "_template.md"}
 SCRIPT_DIR = Path(__file__).resolve().parent

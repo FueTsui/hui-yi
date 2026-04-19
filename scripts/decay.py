@@ -11,6 +11,13 @@ It must not override repetition-driven reinforcement with aggressive state demot
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 import re
 import sys
@@ -21,7 +28,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from common import (
+from core.common import (
     DEFAULT_MEMORY_ROOT,
     SKIP_MARKDOWN,
     normalized_session_signals,

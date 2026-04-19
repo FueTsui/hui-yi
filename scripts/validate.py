@@ -12,6 +12,13 @@ Options:
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 from datetime import date
 from pathlib import Path
@@ -21,7 +28,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from common import parse_heading_value, parse_metric_block, parse_section_metric, resolve_memory_root
+from core.common import parse_heading_value, parse_metric_block, parse_section_metric, resolve_memory_root
 import json
 import re
 

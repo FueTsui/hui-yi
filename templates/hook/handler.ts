@@ -203,7 +203,7 @@ const handler = async (event: any) => {
   const channel = String(parsedFrom.channel || event?.context?.provider || event?.context?.channelId || "feishu");
   const threadId = typeof event?.context?.metadata?.threadId === "string" ? event.context.metadata.threadId : undefined;
 
-  const scriptPath = path.join(workspaceDir, "skills", "hui-yi", "scripts", "openclaw_signal_hook.py");
+  const scriptPath = path.join(workspaceDir, "skills", "hui-yi", "core", "openclaw_signal_hook.py");
   const args = [
     scriptPath,
     "--query",

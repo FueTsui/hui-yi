@@ -343,9 +343,9 @@ session_key = <channel>:<chat_id>:<thread_id-or-main>:<date-bucket?>
 - agent 命中 Hui-Yi skill 时自动传入当前 query
 - 统一从真实聊天入口累计 activation event
 
-### Phase 4. Bridge / Scheduler 联动
-- bridge 可以消费 activation density
-- 但 bridge 仍不直接写回 signals，除非有明确回执机制
+### Phase 4. Scheduler / Runtime 联动
+- 外部调度层或上层 runtime 可以消费 activation density
+- 但调度链路仍不直接写回 signals，除非有明确回执机制
 
 ---
 

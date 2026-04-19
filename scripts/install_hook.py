@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
-import json
+import sys
 from pathlib import Path
 
-from common import WORKSPACE_ROOT
-
 SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
+import argparse
+import json
+
+from core.common import WORKSPACE_ROOT
 DEFAULT_HOOK_DIR = WORKSPACE_ROOT / "hooks" / "hui-yi-signal-hook"
-DEFAULT_TEMPLATE_DIR = SKILL_ROOT / "hooks" / "hui-yi-signal-hook"
+DEFAULT_TEMPLATE_DIR = SKILL_ROOT / "templates" / "hook"
 DEFAULT_CONFIG_PATH = WORKSPACE_ROOT.parent / "openclaw.json"
 HOOK_NAME = "hui-yi-signal-hook"
 

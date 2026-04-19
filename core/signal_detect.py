@@ -2,6 +2,13 @@
 """Detect high-confidence Hui-Yi cold-memory candidates from real session context."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 import json
 import re
@@ -12,7 +19,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from common import load_tags_payload, read_text_fallback, resolve_memory_root
+from core.common import load_tags_payload, read_text_fallback, resolve_memory_root
 
 FIELD_WEIGHTS = {
     "title": 2.2,

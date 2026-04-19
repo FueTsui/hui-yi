@@ -1,5 +1,5 @@
 name: hui-yi
-version: 1.2.3
+version: 1.2.4
 description: Manage a file-based cold-memory archive under memory/cold/.
 required_paths:
   - path: memory/cold/
@@ -8,14 +8,11 @@ required_paths:
   - path: memory/heartbeat-state.json
     access: read_write
     description: Heartbeat state with coldMemory metadata
-  - path: skills/hui-yi/bridge/
-    access: read_write
-    description: Bridge module state and local outputs
 creates_files: true
 modifies_files: true
 has_scripts: true
 scripts:
-  - path: scripts/common.py
+  - path: core/common.py
     description: Shared helpers
   - path: scripts/create.py
     description: Create a cold memory note
@@ -33,21 +30,21 @@ scripts:
     description: Review, resurface, feedback, and session flows
   - path: scripts/scheduler.py
     description: Timed reinforcement selector
-  - path: scripts/scoring.py
+  - path: core/scoring.py
     description: Shared scoring logic
-  - path: scripts/feedback_core.py
+  - path: core/feedback_core.py
     description: Shared feedback and state transition logic
-  - path: scripts/signal_detect.py
+  - path: core/signal_detect.py
     description: Detect signal candidates from context
-  - path: scripts/signal_apply.py
+  - path: core/signal_apply.py
     description: Apply signal activation to a note
-  - path: scripts/signal_pipeline.py
+  - path: core/signal_pipeline.py
     description: Detect and optionally write signal activations
-  - path: scripts/signal_contract.py
+  - path: core/signal_contract.py
     description: Shared signal and hook contract helpers
-  - path: scripts/openclaw_signal_hook.py
+  - path: core/openclaw_signal_hook.py
     description: OpenClaw-facing signal hook adapter
-  - path: scripts/openclaw_runtime_probe.py
+  - path: core/openclaw_runtime_probe.py
     description: Workspace-side runtime probe
   - path: scripts/install_hook.py
     description: Install bundled Hui-Yi hook template

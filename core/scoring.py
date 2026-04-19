@@ -2,11 +2,18 @@
 """Shared scoring logic for Hui-Yi review, resurfacing, and scheduling."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import math
 from datetime import date, timedelta
 
-from common import DEFAULT_INTERVAL_DAYS, STRENGTH_RISK_FACTOR, memory_strength, parse_date, repetition_signal
-from signal_detect import detect_match
+from core.common import DEFAULT_INTERVAL_DAYS, STRENGTH_RISK_FACTOR, memory_strength, parse_date, repetition_signal
+from core.signal_detect import detect_match
 
 IMPORTANCE_WEIGHT = {"high": 3.0, "medium": 2.0, "low": 1.0}
 

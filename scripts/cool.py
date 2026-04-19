@@ -5,12 +5,19 @@ Extended with lightweight forgetting-aware cold-memory stats.
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 import json
 from datetime import date, datetime
 from pathlib import Path
 
-from common import WORKSPACE_ROOT, load_json, save_json, resolve_path
+from core.common import WORKSPACE_ROOT, load_json, save_json, resolve_path
 
 DEFAULT_MEMORY_ROOT = WORKSPACE_ROOT / "memory"
 DEFAULT_COLD_ROOT = DEFAULT_MEMORY_ROOT / "cold"

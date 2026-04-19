@@ -15,12 +15,19 @@ and tags.json (pass --no-rebuild to skip).
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 from datetime import date, timedelta
 from pathlib import Path
 import re
 
-from common import resolve_memory_root, run_python_script_main
+from core.common import resolve_memory_root, run_python_script_main
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 

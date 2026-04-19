@@ -55,20 +55,22 @@ Cold-memory area:
 - `memory/cold/schedule.json`
 - `memory/heartbeat-state.json`
 
-Key scripts:
-- `create.py`
-- `validate.py`
-- `search.py`
-- `rebuild.py`
-- `decay.py`
-- `cool.py`
-- `review.py`
-- `scheduler.py`
-- `signal_detect.py`
-- `signal_pipeline.py`
-- `openclaw_signal_hook.py`
-- `openclaw_runtime_probe.py`
-- `install_hook.py`
+CLI entry scripts:
+- `scripts/create.py`
+- `scripts/validate.py`
+- `scripts/search.py`
+- `scripts/rebuild.py`
+- `scripts/decay.py`
+- `scripts/cool.py`
+- `scripts/review.py`
+- `scripts/scheduler.py`
+- `scripts/install_hook.py`
+
+Core modules:
+- `core/signal_detect.py`
+- `core/signal_pipeline.py`
+- `core/openclaw_signal_hook.py`
+- `core/openclaw_runtime_probe.py`
 
 ## Sanity check
 

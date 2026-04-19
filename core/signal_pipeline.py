@@ -6,6 +6,13 @@ then optionally write weak activation signals back to matching notes.
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 import json
 import sys
@@ -16,10 +23,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from signal_apply import main as signal_apply_main
-from signal_contract import CONFIDENCE_ORDER, candidate_payload
-from signal_detect import load_context_text, detect_match
-from common import load_tags_payload, repetition_signal, resolve_memory_root
+from core.signal_apply import main as signal_apply_main
+from core.signal_contract import CONFIDENCE_ORDER, candidate_payload
+from core.signal_detect import load_context_text, detect_match
+from core.common import load_tags_payload, repetition_signal, resolve_memory_root
 
 
 def run_apply(note_ref: str, memory_root: Path, session_key: str, strength: str, source: str, activated_at: str) -> int:

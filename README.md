@@ -1,6 +1,6 @@
-# Hui-Yi
+# 回忆（Hui-Yi）
 
-Hui-Yi 是一个面向冷记忆的 skill。它的核心不是“时间到了就复习”，而是：
+回忆（Hui-Yi ）是一个面向冷记忆的 skill。它的核心不是“时间到了就复习”，而是：
 
 > **会话里反复出现、反复被激活的信息，优先强化；艾宾浩斯曲线负责安排强化节奏。**
 
@@ -109,7 +109,9 @@ hui-yi/
 │   ├── cold/
 │   └── heartbeat-state.json
 ├── scripts/
-├── bridge/
+├── core/
+├── templates/
+├── templates/
 ├── references/
 ├── SKILL.md
 └── manifest.yaml
@@ -128,7 +130,7 @@ hui-yi/
 
 从 `<workspace>` 根目录运行时，把：
 - `scripts/...` 替换为 `skills/hui-yi/scripts/...`
-- `bridge/...` 替换为 `skills/hui-yi/bridge/...`
+- `hook-template/...` 视为 skill 内模板目录，安装目标仍为 `workspace/hooks/hui-yi-signal-hook/...`
 
 ---
 
@@ -175,7 +177,7 @@ memory/
 ```
 
 然后复制：
-- `references/note-template.md` -> `memory/cold/_template.md`
+- `templates/note-template.md` -> `memory/cold/_template.md`
 
 ### 2. 新建第一条冷记忆
 
@@ -228,7 +230,7 @@ python scripts/review.py resurface --query "当前话题" --session-key "feishu:
 | `python scripts/cool.py scan` | 扫描 cooling 状态 |
 | `python scripts/cool.py done <reviewed> <archived> <merged>` | 记录一次 cooling 完成情况 |
 | `python scripts/scheduler.py --schedule-id <id>` | 运行指定 schedule 的筛选逻辑 |
-| `python bridge/bridge.py --dry-run` | 预览 bridge 选中的候选和投递决策 |
+| `python scripts/install_hook.py --dry-run` | 预览 Hui-Yi hook 模板安装结果 |
 
 说明：
 - `review.py` 现在会同时考虑 **重复出现** 和 **时间压力**
@@ -299,13 +301,11 @@ python scripts/cool.py status
 ```bash
 python scripts/scheduler.py --schedule-id daily-evening-review
 python scripts/scheduler.py --schedule-id daily-evening-review --preview --query "当前话题"
-python bridge/bridge.py --dry-run
 ```
 
 边界要明确：
 - `scheduler.py` 负责选候选，不负责真正发消息
-- `bridge.py` 负责策略筛选、去重、限流，以及把候选落到安全的本地交付模式（如 `logOnly` / `stdout` / `file`）
-- `delivery.mode = message` 目前明确视为未实现占位，不应当把它当成现成的稳定生产方案，也不应通过 shell 命令适配器伪装成消息发送链路
+- 是否投递、何时投递、通过什么消息链路投递，应由外部 scheduler / runtime / agent 层决定
 
 ### 5. 安装并启用 Hui-Yi hook
 
@@ -324,8 +324,8 @@ python scripts/install_hook.py --enable --config-path C:\path\to\openclaw.json
 ```
 
 行为说明：
-- 默认会把 `skills/hui-yi/hooks/hui-yi-signal-hook/` 下的模板文件安装到 `workspace/hooks/hui-yi-signal-hook/`
-- 模板来源是 skill 包内的 `skills/hui-yi/hooks/hui-yi-signal-hook/`，不是 workspace 中旧的已安装文件
+- 默认会把 `skills/hui-yi/templates/hook/` 下的模板文件安装到 `workspace/hooks/hui-yi-signal-hook/`
+- 模板来源是 skill 包内的 `skills/hui-yi/templates/hook/`，不是 workspace 中旧的已安装文件
 - `--enable` 会同时确保 `openclaw.json` 里的以下配置开启：
   - `hooks.internal.enabled = true`
   - `hooks.internal.entries.hui-yi-signal-hook.enabled = true`
@@ -333,21 +333,12 @@ python scripts/install_hook.py --enable --config-path C:\path\to\openclaw.json
 
 ---
 
-## Scheduler 与 Bridge
+## Scheduler
 
 `scheduler.py` 负责：
 - 读取 `schedule.json`
 - 根据 repetition、due pressure、importance、allowed_states、context、cooldown 选择候选
 - 输出人类可读结果或 JSON
-
-`bridge.py` 负责：
-- 汇总各个 schedule 的候选
-- 按 `deliveryPolicy` 做二次筛选
-- 去重、静默时段、全局/按 schedule 冷却
-- 按 `logOnly`、`stdout`、`file`、`message` 决定后续动作
-
-默认配置文件：
-- `bridge/config.example.json`
 
 ---
 
@@ -423,30 +414,19 @@ python scripts/smoke_test.py
 - `references/heartbeat-cooling-playbook.md`：cooling 流程
 - `references/integration-patterns.md`：scheduler 与外部系统的对接边界
 - `references/real-session-signals-design.md`：真实会话信号如何自动累积到 `Session signals`
-- `references/openclaw-integration-design.md`：OpenClaw 上层接入设计稿，偏架构设计，不作为唯一实现真相
-- `references/openclaw-runtime-prototype.md`：workspace-side 原型探测与验证记录
-- `references/openclaw-hook-integration-status.md`：hook 集成阶段状态记录，属于阶段性状态文档
 
-### bridge/
-- `bridge/README.md`：bridge 模块的单独说明
-- `bridge/config.example.json`：bridge 默认配置样例
-
-### 补充脚本
-- `python scripts/signal_detect.py --query "..." --json`：把当前 query / 上下文转成高置信 activation candidates
-- `python scripts/signal_pipeline.py --query "..." --session-key "..." --apply --json`：统一执行 detect + threshold + weak activation writeback
-- `python scripts/openclaw_signal_hook.py --query "..." --channel feishu --scope-type user --scope-id "..." --dry-run`：模拟 OpenClaw 上层在 skill-hit 场景中的最小 hook 调用
-- `python scripts/openclaw_runtime_probe.py --query "..." --channel feishu --scope-type user --scope-id "..." --dry-run`：workspace 侧上层接入原型 runner，不直接修改 OpenClaw runtime
+### 补充脚本与模块
 - `python scripts/install_hook.py --dry-run`：预览 Hui-Yi hook 文件安装
 - `python scripts/install_hook.py`：将 Hui-Yi hook 模板显式安装到 `hooks/hui-yi-signal-hook/`
-- `python scripts/test_core.py`：运行最小核心回归测试（state transition / scoring / signal contract）
+- `python core/signal_detect.py --query "..." --json`：把当前 query / 上下文转成高置信 activation candidates
+- `python core/signal_pipeline.py --query "..." --session-key "..." --apply --json`：统一执行 detect + threshold + weak activation writeback
+- `python core/openclaw_signal_hook.py --query "..." --channel feishu --scope-type user --scope-id "..." --dry-run`：模拟 OpenClaw 上层在 skill-hit 场景中的最小 hook 调用
+- `python core/openclaw_runtime_probe.py --query "..." --channel feishu --scope-type user --scope-id "..." --dry-run`：workspace 侧上层接入原型 runner，不直接修改 OpenClaw runtime
 
 ### Signal / Hook contract
 
-如果你要继续扩展 Hui-Yi 的实时信号链路，先看：
-- `SIGNAL_CONTRACT.md`
-
 当前建议的理解方式：
 - hook 只负责监听事件和调用 adapter
-- `openclaw_signal_hook.py` 只负责 OpenClaw-facing 参数归一化
-- `signal_*` 脚本负责 detection / apply / pipeline
-- session key 形状和 trigger-source 默认值由 `scripts/signal_contract.py` 统一维护
+- `core/openclaw_signal_hook.py` 只负责 OpenClaw-facing 参数归一化
+- `core/signal_*` 模块负责 detection / apply / pipeline
+- session key 形状和 trigger-source 默认值由 `core/signal_contract.py` 统一维护

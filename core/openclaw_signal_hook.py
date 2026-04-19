@@ -12,6 +12,13 @@ Its job is only:
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 import json
 import sys
@@ -21,8 +28,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from common import load_python_module, resolve_memory_root
-from signal_contract import build_session_key, resolve_trigger_defaults
+from core.common import load_python_module, resolve_memory_root
+from core.signal_contract import build_session_key, resolve_trigger_defaults
 
 
 def call_signal_pipeline(memory_root: Path, query: str, session_key: str, *, limit: int, min_relevance: float, min_confidence: str, apply: bool) -> dict:

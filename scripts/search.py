@@ -2,6 +2,13 @@
 """Search Hui-Yi cold memory metadata by keyword or short query."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 from pathlib import Path
 import sys
@@ -10,7 +17,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from common import load_tags_payload, read_text_fallback, resolve_memory_root
+from core.common import load_tags_payload, read_text_fallback, resolve_memory_root
 
 STATE_BOOST = {"hot": 0.2, "warm": 0.35, "cold": 0.25, "dormant": 0.05}
 IMPORTANCE_BOOST = {"high": 0.35, "medium": 0.2, "low": 0.05}

@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import json
 import re
 from datetime import date, datetime, timedelta
@@ -16,6 +23,10 @@ def detect_workspace_root(script_dir: Path) -> Path:
     if (skill_root / "SKILL.md").exists() and (skill_root / "manifest.yaml").exists():
         if skill_root.parent.name == "skills":
             return skill_root.parent.parent
+        if skill_root.name == "hui-yi" and skill_root.parent.name == "temp":
+            workspace_candidate = skill_root.parent.parent
+            if (workspace_candidate / "skills").exists() or (workspace_candidate / "openclaw.json").exists():
+                return workspace_candidate
         return skill_root
     return script_dir.parents[2]
 

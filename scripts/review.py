@@ -9,6 +9,13 @@ Commands:
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 from datetime import date
 from pathlib import Path
@@ -18,7 +25,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from common import (
+from core.common import (
     load_python_module,
     load_tags_payload,
     memory_strength,
@@ -29,10 +36,10 @@ from common import (
     resolve_memory_root,
     save_json,
 )
-from feedback_core import DORMANT_INTERVAL_DAYS, write_note_feedback
-from scoring import resurfacing_priority
-from signal_detect import load_context_text
-from signal_pipeline import apply_candidates
+from core.feedback_core import DORMANT_INTERVAL_DAYS, write_note_feedback
+from core.scoring import resurfacing_priority
+from core.signal_detect import load_context_text
+from core.signal_pipeline import apply_candidates
 
 
 def load_tags(memory_root: Path) -> dict:

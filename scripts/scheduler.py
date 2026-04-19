@@ -6,6 +6,13 @@ It reads a schedule config, filters eligible notes, and prints the best recall c
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import argparse
 import json
 import sys
@@ -19,10 +26,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from signal_detect import load_context_text
+from core.signal_detect import load_context_text
 from review import load_tags
-from scoring import resurfacing_priority
-from common import DEFAULT_MEMORY_ROOT, parse_date, read_text_fallback, repetition_signal, resolve_memory_root as common_resolve_memory_root, load_json
+from core.scoring import resurfacing_priority
+from core.common import DEFAULT_MEMORY_ROOT, parse_date, read_text_fallback, repetition_signal, resolve_memory_root as common_resolve_memory_root, load_json
 
 
 DEFAULT_CONFIG_PATH = DEFAULT_MEMORY_ROOT / "schedule.json"

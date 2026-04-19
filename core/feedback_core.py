@@ -2,11 +2,18 @@
 """Shared feedback and state-transition logic for Hui-Yi."""
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+SKILL_ROOT = Path(__file__).resolve().parents[1]
+if str(SKILL_ROOT) not in sys.path:
+    sys.path.insert(0, str(SKILL_ROOT))
+
 import re
 from datetime import date, timedelta
 from pathlib import Path
 
-from common import DEFAULT_INTERVAL_DAYS, REVIEW_LADDER, memory_strength, parse_heading_value, parse_review_metric, read_text_fallback
+from core.common import DEFAULT_INTERVAL_DAYS, REVIEW_LADDER, memory_strength, parse_heading_value, parse_review_metric, read_text_fallback
 
 GRADUATION_MIN_REVIEWS = 7
 GRADUATION_MIN_SUCCESS_RATE = 0.8
