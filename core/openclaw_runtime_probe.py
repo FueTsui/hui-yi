@@ -37,7 +37,7 @@ def main() -> int:
     workspace = WORKSPACE_ROOT
     hook_script = workspace / "skills" / "hui-yi" / "core" / "openclaw_signal_hook.py"
     cmd = [
-        "python",
+        sys.executable,
         str(hook_script),
         "--query",
         args.query,
