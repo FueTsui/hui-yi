@@ -65,6 +65,7 @@ CLI entry scripts:
 - `scripts/review.py`
 - `scripts/scheduler.py`
 - `scripts/install_hook.py`
+- `scripts/smoke_test.py`
 
 Core modules:
 - `core/signal_detect.py`

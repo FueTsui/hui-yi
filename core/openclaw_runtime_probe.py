@@ -35,7 +35,7 @@ def main() -> int:
     args = parser.parse_args()
 
     workspace = WORKSPACE_ROOT
-    hook_script = workspace / "skills" / "hui-yi" / "scripts" / "openclaw_signal_hook.py"
+    hook_script = workspace / "skills" / "hui-yi" / "core" / "openclaw_signal_hook.py"
     cmd = [
         "python",
         str(hook_script),
