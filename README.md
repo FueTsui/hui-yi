@@ -331,6 +331,12 @@ python scripts/install_hook.py --enable --config-path C:\path\to\openclaw.json
   - `hooks.internal.entries.hui-yi-signal-hook.enabled = true`
 - 如果文件已存在、配置已启用，安装器会直接报告状态，不会无意义重写；如需覆盖旧占位文件，请使用 `--force --enable`
 
+安全边界：
+- hook 是显式 opt-in；建议先运行 `--dry-run` 并审阅 `templates/hook/` 后再启用
+- hook 不访问网络，不读取凭据目录，只在本地 `memory/cold/` 内读取 note 并写回 `tags.json` / note 的 `Session signals`
+- note path 会被解析并强制限制在 `memory/cold/` 内；绝对路径和 `..` 父级跳转会被拒绝
+- 为避免持久化原始聊天标识，session key 仅以短 `sha256:` fingerprint 形式写入 metadata，用于去重和重复激活判断
+
 ---
 
 ## Scheduler

@@ -26,6 +26,7 @@ from core.common import (
     replace_or_insert_section_metrics,
     resolve_memory_root,
     save_json,
+    session_fingerprint,
 )
 
 
@@ -79,7 +80,8 @@ def main() -> int:
     text = note_path.read_text(encoding="utf-8")
     signals = parse_session_signals(text)
 
-    dedup_key = f"{args.session_key}|{slugify(Path(note_path).stem)}|{activated_day}|{args.source}"
+    session_hash = session_fingerprint(args.session_key)
+    dedup_key = f"{session_hash}|{slugify(Path(note_path).stem)}|{activated_day}|{args.source}"
     history = matched.get("signal_history") if isinstance(matched.get("signal_history"), list) else []
     if dedup_key in history:
         print(f"SKIP duplicate activation: {matched.get('title')} | {dedup_key}", file=sys.stderr)
@@ -90,7 +92,7 @@ def main() -> int:
     signals["recent_session_hits"] = int(signals.get("recent_session_hits", 0) or 0) + strength_bump
 
     last_session_key = matched.get("last_session_key")
-    if last_session_key != args.session_key:
+    if last_session_key != session_hash:
         signals["cross_session_repeat_count"] = int(signals.get("cross_session_repeat_count", 0) or 0) + 1
         if last_session_key:
             signals["consecutive_session_count"] = int(signals.get("consecutive_session_count", 0) or 0) + 1
@@ -116,14 +118,14 @@ def main() -> int:
 
     matched["session_signals"] = signals
     matched["last_seen"] = activated_day
-    matched["last_session_key"] = args.session_key
+    matched["last_session_key"] = session_hash
     history = (history + [dedup_key])[-20:]
     matched["signal_history"] = history
     payload.setdefault("_meta", {})["updated"] = activated_day
     save_json(memory_root / "tags.json", payload)
 
     print(
-        f"Applied signal: {matched.get('title')} | session_key={args.session_key} | "
+        f"Applied signal: {matched.get('title')} | session_hash={session_hash} | "
         f"strength={args.strength} | recent_hits={signals['recent_session_hits']} | "
         f"cross_session_repeat_count={signals['cross_session_repeat_count']}",
         file=sys.stderr,

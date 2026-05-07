@@ -1,8 +1,9 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
 const FALLBACK_WORKSPACE_DIR = process.env.OPENCLAW_WORKSPACE_DIR || process.cwd();
-const HOOK_VERSION = "2026-04-30-inline-signal-pipeline-v1";
+const HOOK_VERSION = "2026-05-07-sandboxed-signal-pipeline-v2";
 const MAX_LOG_BYTES = 256 * 1024;
 const KEEP_LOG_BYTES = 128 * 1024;
 const FIELD_WEIGHTS: Record<string, number> = {
@@ -421,10 +422,26 @@ function slugify(text: string): string {
 }
 
 function noteFilePath(memoryRoot: string, note: Record<string, any>): string {
-  let raw = String(note.path || "").replace(/\\/g, "/");
+  let raw = String(note.path || "").replace(/\\/g, "/").trim();
+  if (!raw) throw new Error("note path is empty");
   if (raw.startsWith("memory/cold/")) raw = raw.slice("memory/cold/".length);
-  if (path.isAbsolute(raw)) return raw;
-  return path.join(memoryRoot, ...raw.split("/").filter(Boolean));
+  if (path.isAbsolute(raw)) throw new Error(`absolute note paths are not allowed: ${raw}`);
+  const parts = raw.split("/").filter(Boolean);
+  if (!parts.length || parts.some((part) => part === ".." || part === ".")) {
+    throw new Error(`unsafe note path outside memory root: ${raw}`);
+  }
+  const root = path.resolve(memoryRoot);
+  const resolved = path.resolve(root, ...parts);
+  const relative = path.relative(root, resolved);
+  if (relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error(`note path escapes memory root: ${raw}`);
+  }
+  return resolved;
+}
+
+function sessionFingerprint(sessionKey: string): string {
+  const digest = crypto.createHash("sha256").update(sessionKey, "utf8").digest("hex");
+  return `sha256:${digest.slice(0, 16)}`;
 }
 
 function findNote(notes: Record<string, any>[], target: string): Record<string, any> | null {
@@ -537,7 +554,8 @@ function applyCandidate(
 
   const text = fs.readFileSync(notePath, "utf8");
   const signals = parseSessionSignals(text);
-  const dedupKey = `${sessionKey}|${slugify(path.parse(notePath).name)}|${todayIso}|${source}`;
+  const sessionHash = sessionFingerprint(sessionKey);
+  const dedupKey = `${sessionHash}|${slugify(path.parse(notePath).name)}|${todayIso}|${source}`;
   const history = Array.isArray(matched.signal_history) ? matched.signal_history.map((item: unknown) => String(item)) : [];
   if (history.includes(dedupKey)) {
     return { applied: null, skipped: `Duplicate activation: ${matched.title || noteRef}` };
@@ -546,7 +564,7 @@ function applyCandidate(
   signals.current_session_hits = Number(signals.current_session_hits || 0) + 1;
   signals.recent_session_hits = Number(signals.recent_session_hits || 0) + ({ weak: 1, medium: 1, strong: 2 }[strength]);
   const lastSessionKey = typeof matched.last_session_key === "string" ? matched.last_session_key : null;
-  if (lastSessionKey !== sessionKey) {
+  if (lastSessionKey !== sessionHash) {
     signals.cross_session_repeat_count = Number(signals.cross_session_repeat_count || 0) + 1;
     if (lastSessionKey) {
       signals.consecutive_session_count = Number(signals.consecutive_session_count || 0) + 1;
@@ -569,7 +587,7 @@ function applyCandidate(
 
   matched.session_signals = signals;
   matched.last_seen = todayIso;
-  matched.last_session_key = sessionKey;
+  matched.last_session_key = sessionHash;
   matched.signal_history = [...history, dedupKey].slice(-20);
   payload._meta = payload._meta && typeof payload._meta === "object" ? payload._meta : {};
   payload._meta.updated = todayIso;

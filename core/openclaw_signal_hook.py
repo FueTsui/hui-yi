@@ -28,14 +28,12 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from core.common import load_python_module, resolve_memory_root
+from core.common import resolve_memory_root
 from core.signal_contract import build_session_key, resolve_trigger_defaults
+from core.signal_pipeline import main as signal_pipeline_main
 
 
 def call_signal_pipeline(memory_root: Path, query: str, session_key: str, *, limit: int, min_relevance: float, min_confidence: str, apply: bool) -> dict:
-    pipeline_path = Path(__file__).with_name("signal_pipeline.py")
-    pipeline_mod = load_python_module(pipeline_path, "signal_pipeline")
-
     original_argv = sys.argv
     try:
         argv = [
@@ -62,7 +60,7 @@ def call_signal_pipeline(memory_root: Path, query: str, session_key: str, *, lim
 
         capture = StringIO()
         with contextlib.redirect_stdout(capture):
-            exit_code = pipeline_mod.main()
+            exit_code = signal_pipeline_main()
         output = capture.getvalue().strip()
         payload = json.loads(output) if output else {}
         return {

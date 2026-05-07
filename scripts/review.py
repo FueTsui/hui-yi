@@ -25,8 +25,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
+from core.signal_apply import main as signal_apply_main
 from core.common import (
-    load_python_module,
     load_tags_payload,
     memory_strength,
     note_file_path,
@@ -169,9 +169,6 @@ def apply_session_signal(
     if not session_key:
         return
 
-    signal_apply_path = Path(__file__).with_name("signal_apply.py")
-    signal_apply_mod = load_python_module(signal_apply_path, "signal_apply")
-
     original_argv = sys.argv
     try:
         sys.argv = [
@@ -188,7 +185,7 @@ def apply_session_signal(
             "--activated-at",
             today.isoformat(),
         ]
-        exit_code = signal_apply_mod.main()
+        exit_code = signal_apply_main()
         if exit_code != 0:
             print(f"Warning: signal_apply reported error (exit code {exit_code}).")
     finally:

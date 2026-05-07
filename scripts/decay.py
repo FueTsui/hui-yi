@@ -37,8 +37,9 @@ from core.common import (
     parse_review_metric,
     repetition_signal,
     resolve_memory_root,
-    run_python_script_main,
+    run_main_with_argv,
 )
+from scripts.rebuild import main as rebuild_main
 
 SKIP = SKIP_MARKDOWN
 CONFIDENCE_ORDER = ["high", "medium", "low"]
@@ -165,11 +166,9 @@ def main() -> int:
         return 0
 
     if args.rebuild:
-        rebuild_path = Path(__file__).with_name("rebuild.py")
         heartbeat_path = root.parent / "heartbeat-state.json"
-        exit_code = run_python_script_main(
-            rebuild_path,
-            "rebuild",
+        exit_code = run_main_with_argv(
+            rebuild_main,
             [
                 "rebuild.py",
                 "--memory-root",

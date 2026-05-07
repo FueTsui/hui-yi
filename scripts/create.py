@@ -27,7 +27,8 @@ from datetime import date, timedelta
 from pathlib import Path
 import re
 
-from core.common import resolve_memory_root, run_python_script_main
+from core.common import resolve_memory_root, run_main_with_argv
+from scripts.rebuild import main as rebuild_main
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 
@@ -174,11 +175,9 @@ def main() -> int:
     if not args.no_rebuild:
         print()
         # Directly invoke rebuild logic without spawning a subprocess
-        rebuild_path = Path(__file__).with_name('rebuild.py')
         heartbeat_path = memory_root.parent / "heartbeat-state.json"
-        exit_code = run_python_script_main(
-            rebuild_path,
-            "rebuild",
+        exit_code = run_main_with_argv(
+            rebuild_main,
             [
                 "rebuild.py",
                 "--memory-root",

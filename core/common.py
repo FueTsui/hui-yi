@@ -8,10 +8,10 @@ SKILL_ROOT = Path(__file__).resolve().parents[1]
 if str(SKILL_ROOT) not in sys.path:
     sys.path.insert(0, str(SKILL_ROOT))
 
+import hashlib
 import json
 import re
 from datetime import date, datetime, timedelta
-import importlib.util
 from pathlib import Path
 import sys
 
@@ -154,11 +154,36 @@ def parse_section_value(text: str, heading: str, key: str) -> str | None:
 
 
 def note_file_path(memory_root: Path, note: dict) -> Path:
-    raw = note.get("path", "")
+    """Resolve a note path and enforce the memory_root sandbox.
+
+    tags.json is metadata, not authority. Reject absolute paths and parent
+    traversal so poisoned metadata cannot make Hui-Yi read/write outside
+    memory/cold/.
+    """
+    raw = str(note.get("path", "") or "").replace("\\", "/").strip()
+    if not raw:
+        raise ValueError("note path is empty")
     candidate = Path(raw)
-    if candidate.parts[:2] == ("memory", "cold"):
-        candidate = Path(*candidate.parts[2:])
-    return memory_root / candidate
+    if candidate.is_absolute():
+        raise ValueError(f"absolute note paths are not allowed: {raw}")
+    parts = candidate.parts
+    if parts[:2] == ("memory", "cold"):
+        candidate = Path(*parts[2:]) if len(parts) > 2 else Path("")
+    if not candidate.parts or any(part in {"..", ""} for part in candidate.parts):
+        raise ValueError(f"unsafe note path outside memory root: {raw}")
+    root = memory_root.resolve()
+    resolved = (root / candidate).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"note path escapes memory root: {raw}") from exc
+    return resolved
+
+
+def session_fingerprint(session_key: str) -> str:
+    """Stable non-reversible session identifier for local dedupe metadata."""
+    digest = hashlib.sha256(session_key.encode("utf-8")).hexdigest()
+    return f"sha256:{digest[:16]}"
 
 
 def load_tags_payload(memory_root: Path) -> dict:
@@ -268,22 +293,10 @@ def memory_strength(note: dict, default_interval_days: int = DEFAULT_INTERVAL_DA
     return "weak"
 
 
-def load_python_module(module_path: Path, module_name: str):
-    spec = importlib.util.spec_from_file_location(module_name, module_path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Could not load module spec for {module_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def run_python_script_main(module_path: Path, module_name: str, argv: list[str]) -> int:
-    module = load_python_module(module_path, module_name)
-    if not hasattr(module, "main"):
-        raise AttributeError(f"Module {module_path} has no main()")
+def run_main_with_argv(main_func, argv: list[str]) -> int:
     original_argv = sys.argv
     try:
         sys.argv = argv
-        return int(module.main())
+        return int(main_func())
     finally:
         sys.argv = original_argv
