@@ -186,6 +186,26 @@ def session_fingerprint(session_key: str) -> str:
     return f"sha256:{digest[:16]}"
 
 
+def normalize_signal_history(history: object) -> list[str]:
+    """Hash legacy raw session ids in signal_history entries.
+
+    v1.2.8 switched new entries to sha256 fingerprints. This migration keeps
+    dedupe semantics while scrubbing older raw session-key prefixes the next
+    time a note receives a signal.
+    """
+    if not isinstance(history, list):
+        return []
+    normalized: list[str] = []
+    for item in history:
+        value = str(item)
+        parts = value.split("|", 3)
+        if parts and parts[0] and not parts[0].startswith("sha256:"):
+            parts[0] = session_fingerprint(parts[0])
+            value = "|".join(parts)
+        normalized.append(value)
+    return normalized
+
+
 def load_tags_payload(memory_root: Path) -> dict:
     tags_path = memory_root / "tags.json"
     if not tags_path.exists():

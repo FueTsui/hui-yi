@@ -66,6 +66,7 @@ CLI entry scripts:
 - `scripts/scheduler.py`
 - `scripts/install_hook.py`
 - `scripts/smoke_test.py`
+- `scripts/scrub_metadata.py`
 
 Core modules:
 - `core/signal_detect.py`

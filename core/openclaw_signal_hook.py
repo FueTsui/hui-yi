@@ -28,7 +28,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from core.common import resolve_memory_root
+from core.common import resolve_memory_root, session_fingerprint
 from core.signal_contract import build_session_key, resolve_trigger_defaults
 from core.signal_pipeline import main as signal_pipeline_main
 
@@ -63,10 +63,12 @@ def call_signal_pipeline(memory_root: Path, query: str, session_key: str, *, lim
             exit_code = signal_pipeline_main()
         output = capture.getvalue().strip()
         payload = json.loads(output) if output else {}
+        if isinstance(payload, dict):
+            payload.pop("session_key", None)
         return {
             "ok": exit_code == 0,
             "exitCode": exit_code,
-            "sessionKey": session_key,
+            "sessionHash": session_fingerprint(session_key),
             "pipeline": payload,
         }
     finally:

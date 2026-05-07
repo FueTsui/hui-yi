@@ -444,6 +444,17 @@ function sessionFingerprint(sessionKey: string): string {
   return `sha256:${digest.slice(0, 16)}`;
 }
 
+function normalizeSignalHistory(history: unknown): string[] {
+  if (!Array.isArray(history)) return [];
+  return history.map((item: unknown) => {
+    const parts = String(item).split("|");
+    if (parts[0] && !parts[0].startsWith("sha256:")) {
+      parts[0] = sessionFingerprint(parts[0]);
+    }
+    return parts.join("|");
+  });
+}
+
 function findNote(notes: Record<string, any>[], target: string): Record<string, any> | null {
   const lookup = target.trim().toLowerCase();
   const targetWords = new Set(lookup.split(/\s+/).filter(Boolean));
@@ -556,8 +567,14 @@ function applyCandidate(
   const signals = parseSessionSignals(text);
   const sessionHash = sessionFingerprint(sessionKey);
   const dedupKey = `${sessionHash}|${slugify(path.parse(notePath).name)}|${todayIso}|${source}`;
-  const history = Array.isArray(matched.signal_history) ? matched.signal_history.map((item: unknown) => String(item)) : [];
+  const rawHistory = Array.isArray(matched.signal_history) ? matched.signal_history.map((item: unknown) => String(item)) : [];
+  const history = normalizeSignalHistory(rawHistory);
   if (history.includes(dedupKey)) {
+    if (history.join("\n") !== rawHistory.join("\n")) {
+      matched.signal_history = history.slice(-20);
+      payload._meta = payload._meta && typeof payload._meta === "object" ? payload._meta : {};
+      payload._meta.updated = todayIso;
+    }
     return { applied: null, skipped: `Duplicate activation: ${matched.title || noteRef}` };
   }
 
@@ -618,12 +635,11 @@ function runSignalPipeline(workspaceDir: string, query: string, sessionKey: stri
   return {
     ok: true,
     exitCode: 0,
-    sessionKey,
+    sessionHash: sessionFingerprint(sessionKey),
     dryRun: false,
     triggerSource,
     pipeline: {
       query,
-      session_key: sessionKey,
       candidates,
       applied,
       skipped

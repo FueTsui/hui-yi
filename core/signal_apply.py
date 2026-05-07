@@ -27,6 +27,7 @@ from core.common import (
     resolve_memory_root,
     save_json,
     session_fingerprint,
+    normalize_signal_history,
 )
 
 
@@ -82,8 +83,13 @@ def main() -> int:
 
     session_hash = session_fingerprint(args.session_key)
     dedup_key = f"{session_hash}|{slugify(Path(note_path).stem)}|{activated_day}|{args.source}"
-    history = matched.get("signal_history") if isinstance(matched.get("signal_history"), list) else []
+    raw_history = matched.get("signal_history") if isinstance(matched.get("signal_history"), list) else []
+    history = normalize_signal_history(raw_history)
     if dedup_key in history:
+        if history != raw_history:
+            matched["signal_history"] = history[-20:]
+            payload.setdefault("_meta", {})["updated"] = activated_day
+            save_json(memory_root / "tags.json", payload)
         print(f"SKIP duplicate activation: {matched.get('title')} | {dedup_key}", file=sys.stderr)
         return 0
 

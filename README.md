@@ -336,6 +336,7 @@ python scripts/install_hook.py --enable --config-path C:\path\to\openclaw.json
 - hook 不访问网络，不读取凭据目录，只在本地 `memory/cold/` 内读取 note 并写回 `tags.json` / note 的 `Session signals`
 - note path 会被解析并强制限制在 `memory/cold/` 内；绝对路径和 `..` 父级跳转会被拒绝
 - 为避免持久化原始聊天标识，session key 仅以短 `sha256:` fingerprint 形式写入 metadata，用于去重和重复激活判断
+- v1.2.9 起，signal 写回会顺手清洗旧版 `signal_history` 中的 raw session key；老用户也可以运行 `python scripts/scrub_metadata.py` 一次性清洗 legacy metadata
 
 ---
 
@@ -424,6 +425,7 @@ python scripts/smoke_test.py
 ### 补充脚本与模块
 - `python scripts/install_hook.py --dry-run`：预览 Hui-Yi hook 文件安装
 - `python scripts/install_hook.py`：将 Hui-Yi hook 模板显式安装到 `hooks/hui-yi-signal-hook/`
+- `python scripts/scrub_metadata.py --dry-run`：预览并清洗旧版 `tags.json` 中 raw session key metadata
 - `python core/signal_detect.py --query "..." --json`：把当前 query / 上下文转成高置信 activation candidates
 - `python core/signal_pipeline.py --query "..." --session-key "..." --apply --json`：统一执行 detect + threshold + weak activation writeback
 - `python core/openclaw_signal_hook.py --query "..." --channel feishu --scope-type user --scope-id "..." --dry-run`：模拟 OpenClaw 上层在 skill-hit 场景中的最小 hook 调用
