@@ -6,6 +6,7 @@ const FALLBACK_WORKSPACE_DIR = process.env.OPENCLAW_WORKSPACE_DIR || process.cwd
 const HOOK_VERSION = "2026-05-07-sandboxed-signal-pipeline-v2";
 const MAX_LOG_BYTES = 256 * 1024;
 const KEEP_LOG_BYTES = 128 * 1024;
+const CONSECUTIVE_SESSION_WINDOW_DAYS = 14;
 const FIELD_WEIGHTS: Record<string, number> = {
   title: 2.2,
   summary: 1.5,
@@ -69,14 +70,12 @@ function looksLikeHuiYiIntent(text: string): boolean {
   const q = (text || "").toLowerCase();
   if (!q.trim()) return false;
   const patterns = [
-    /之前/,
-    /以前/,
+    /(?:之前|以前).*(?:聊过|说过|提过|做过|处理|决定|记录)/,
     /有记录吗/,
     /你记得吗/,
-    /回忆/,
-    /怎么处理/,
-    /历史/,
-    /延续/,
+    /回忆(?:一下|下|之前|以前|历史)?/,
+    /(?:历史|以前|之前).*(?:对话|聊天|记录|决定|方案|上下文)/,
+    /(?:延续|接着).*(?:之前|以前|上次|历史)/,
     /archive this/i,
     /cool this down/i,
     /hui\s*-?yi/i,
@@ -197,7 +196,8 @@ function appendHookLog(workspaceDir: string, payload: Record<string, unknown>): 
       if (stats.size > MAX_LOG_BYTES) {
         const buffer = fs.readFileSync(logPath);
         const tail = buffer.subarray(Math.max(0, buffer.length - KEEP_LOG_BYTES));
-        fs.writeFileSync(logPath, tail);
+        const newlineIndex = tail.indexOf(0x0a);
+        fs.writeFileSync(logPath, newlineIndex >= 0 ? tail.subarray(newlineIndex + 1) : tail);
       }
     }
 
@@ -354,6 +354,7 @@ function repetitionSignal(note: Record<string, any>, todayIso: string): number {
   score += Math.min(consecutive / 3.0, 1.0) * 0.15;
 
   if (signals.last_activated) {
+    // Elapsed days since the last activation: today - last_activated.
     const age = Math.max(0, daysBetween(todayIso, signals.last_activated));
     if (age <= 1) score += 0.10;
     else if (age <= 3) score += 0.05;
@@ -554,14 +555,14 @@ function applyCandidate(
   strength: SignalStrength,
   source: string,
   todayIso: string
-): { applied: string | null; skipped?: string } {
+): { applied: string | null; skipped?: string; changed: boolean } {
   const notes = Array.isArray(payload.notes) ? payload.notes : [];
   const noteRef = candidate.path || candidate.title || "";
   const matched = noteRef ? findNote(notes, noteRef) : null;
-  if (!matched) return { applied: null, skipped: `Note not found: ${noteRef}` };
+  if (!matched) return { applied: null, skipped: `Note not found: ${noteRef}`, changed: false };
 
   const notePath = noteFilePath(memoryRoot, matched);
-  if (!fs.existsSync(notePath)) return { applied: null, skipped: `Backing note file missing: ${notePath}` };
+  if (!fs.existsSync(notePath)) return { applied: null, skipped: `Backing note file missing: ${notePath}`, changed: false };
 
   const text = fs.readFileSync(notePath, "utf8");
   const signals = parseSessionSignals(text);
@@ -574,19 +575,22 @@ function applyCandidate(
       matched.signal_history = history.slice(-20);
       payload._meta = payload._meta && typeof payload._meta === "object" ? payload._meta : {};
       payload._meta.updated = todayIso;
+      return { applied: null, skipped: `Duplicate activation: ${matched.title || noteRef}`, changed: true };
     }
-    return { applied: null, skipped: `Duplicate activation: ${matched.title || noteRef}` };
+    return { applied: null, skipped: `Duplicate activation: ${matched.title || noteRef}`, changed: false };
   }
 
-  signals.current_session_hits = Number(signals.current_session_hits || 0) + 1;
-  signals.recent_session_hits = Number(signals.recent_session_hits || 0) + ({ weak: 1, medium: 1, strong: 2 }[strength]);
   const lastSessionKey = typeof matched.last_session_key === "string" ? matched.last_session_key : null;
-  if (lastSessionKey !== sessionHash) {
+  const sameSession = lastSessionKey === sessionHash;
+  signals.current_session_hits = sameSession ? Number(signals.current_session_hits || 0) + 1 : 1;
+  signals.recent_session_hits = Number(signals.recent_session_hits || 0) + ({ weak: 1, medium: 1, strong: 2 }[strength]);
+  if (!sameSession) {
     signals.cross_session_repeat_count = Number(signals.cross_session_repeat_count || 0) + 1;
-    if (lastSessionKey) {
+    const lastActivatedAge = signals.last_activated ? daysBetween(todayIso, signals.last_activated) : null;
+    if (lastSessionKey && lastActivatedAge !== null && lastActivatedAge >= 0 && lastActivatedAge <= CONSECUTIVE_SESSION_WINDOW_DAYS) {
       signals.consecutive_session_count = Number(signals.consecutive_session_count || 0) + 1;
     } else {
-      signals.consecutive_session_count = Math.max(1, Number(signals.consecutive_session_count || 0));
+      signals.consecutive_session_count = 1;
     }
   } else {
     signals.consecutive_session_count = Math.max(1, Number(signals.consecutive_session_count || 0));
@@ -609,7 +613,7 @@ function applyCandidate(
   payload._meta = payload._meta && typeof payload._meta === "object" ? payload._meta : {};
   payload._meta.updated = todayIso;
 
-  return { applied: candidate.path || candidate.title || noteRef };
+  return { applied: candidate.path || candidate.title || noteRef, changed: true };
 }
 
 function runSignalPipeline(workspaceDir: string, query: string, sessionKey: string, triggerSource: TriggerSource): Record<string, unknown> {
@@ -621,14 +625,16 @@ function runSignalPipeline(workspaceDir: string, query: string, sessionKey: stri
   const candidates = collectCandidates(notes, query, defaults.minRelevance, defaults.minConfidence, defaults.limit, todayIso);
   const applied: string[] = [];
   const skipped: string[] = [];
+  let changed = false;
 
   for (const candidate of candidates) {
     const result = applyCandidate(payload, memoryRoot, candidate, sessionKey, "weak", "signal_pipeline", todayIso);
     if (result.applied) applied.push(result.applied);
     if (result.skipped) skipped.push(result.skipped);
+    if (result.changed) changed = true;
   }
 
-  if (applied.length) {
+  if (changed) {
     saveJsonFile(path.join(memoryRoot, "tags.json"), payload);
   }
 

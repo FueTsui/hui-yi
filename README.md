@@ -337,6 +337,7 @@ python scripts/install_hook.py --enable --config-path C:\path\to\openclaw.json
 - note path 会被解析并强制限制在 `memory/cold/` 内；绝对路径和 `..` 父级跳转会被拒绝
 - 为避免持久化原始聊天标识，session key 仅以短 `sha256:` fingerprint 形式写入 metadata，用于去重和重复激活判断
 - v1.2.9 起，signal 写回会顺手清洗旧版 `signal_history` 中的 raw session key；老用户也可以运行 `python scripts/scrub_metadata.py` 一次性清洗 legacy metadata
+- v1.2.10 起，OpenClaw signal hook 不再通过全局 `sys.argv` 串接 Python pipeline；TS hook 的 `signal_history` 迁移即使命中去重也会落盘，并收紧 heuristic fallback、日志截断和 session 连续计数语义；`scripts/cool.py --memory-root` 同时兼容 `memory/` 与 `memory/cold/` 两种路径。
 
 ---
 

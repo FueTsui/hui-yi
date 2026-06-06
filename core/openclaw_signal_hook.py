@@ -34,45 +34,40 @@ from core.signal_pipeline import main as signal_pipeline_main
 
 
 def call_signal_pipeline(memory_root: Path, query: str, session_key: str, *, limit: int, min_relevance: float, min_confidence: str, apply: bool) -> dict:
-    original_argv = sys.argv
-    try:
-        argv = [
-            "signal_pipeline.py",
-            "--memory-root",
-            str(memory_root),
-            "--query",
-            query,
-            "--session-key",
-            session_key,
-            "--limit",
-            str(limit),
-            "--min-relevance",
-            str(min_relevance),
-            "--min-confidence",
-            min_confidence,
-            "--json",
-        ]
-        if apply:
-            argv.append("--apply")
-        sys.argv = argv
-        from io import StringIO
-        import contextlib
+    argv = [
+        "--memory-root",
+        str(memory_root),
+        "--query",
+        query,
+        "--session-key",
+        session_key,
+        "--limit",
+        str(limit),
+        "--min-relevance",
+        str(min_relevance),
+        "--min-confidence",
+        min_confidence,
+        "--json",
+    ]
+    if apply:
+        argv.append("--apply")
 
-        capture = StringIO()
-        with contextlib.redirect_stdout(capture):
-            exit_code = signal_pipeline_main()
-        output = capture.getvalue().strip()
-        payload = json.loads(output) if output else {}
-        if isinstance(payload, dict):
-            payload.pop("session_key", None)
-        return {
-            "ok": exit_code == 0,
-            "exitCode": exit_code,
-            "sessionHash": session_fingerprint(session_key),
-            "pipeline": payload,
-        }
-    finally:
-        sys.argv = original_argv
+    from io import StringIO
+    import contextlib
+
+    capture = StringIO()
+    with contextlib.redirect_stdout(capture):
+        exit_code = signal_pipeline_main(argv)
+    output = capture.getvalue().strip()
+    payload = json.loads(output) if output else {}
+    if isinstance(payload, dict):
+        payload.pop("session_key", None)
+    return {
+        "ok": exit_code == 0,
+        "exitCode": exit_code,
+        "sessionHash": session_fingerprint(session_key),
+        "pipeline": payload,
+    }
 
 
 def main() -> int:

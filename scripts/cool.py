@@ -23,10 +23,19 @@ DEFAULT_MEMORY_ROOT = WORKSPACE_ROOT / "memory"
 DEFAULT_COLD_ROOT = DEFAULT_MEMORY_ROOT / "cold"
 
 
-def resolve_memory_root(arg: str | None) -> Path:
-    if arg:
-        return resolve_path(arg)
-    return DEFAULT_MEMORY_ROOT
+def resolve_roots(arg: str | None) -> tuple[Path, Path]:
+    """Accept either workspace memory/ or cold-memory memory/cold/ roots.
+
+    Most Hui-Yi scripts use --memory-root for memory/cold/. This helper keeps
+    cool.py compatible with that convention while preserving its daily-note scan
+    behavior, which needs the parent memory/ directory.
+    """
+    if not arg:
+        return DEFAULT_MEMORY_ROOT, DEFAULT_COLD_ROOT
+    root = resolve_path(arg)
+    if root.name == "cold" or (root / "tags.json").exists():
+        return root.parent, root
+    return root, root / "cold"
 
 
 def load_state(path: Path) -> dict:
@@ -124,9 +133,8 @@ def compute_cold_stats(cold_root: Path) -> tuple[dict, int]:
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
-    memory_root = resolve_memory_root(args.memory_root)
+    memory_root, cold_root = resolve_roots(args.memory_root)
     heartbeat = memory_root / "heartbeat-state.json"
-    cold_root = memory_root / "cold"
     state = load_state(heartbeat)
     cold = ensure_cold_state(state)
     last_archive_date = parse_iso_to_date(cold.get("lastArchive"))
@@ -157,9 +165,8 @@ def cmd_scan(args: argparse.Namespace) -> int:
 
 
 def cmd_done(args: argparse.Namespace) -> int:
-    memory_root = resolve_memory_root(args.memory_root)
+    memory_root, cold_root = resolve_roots(args.memory_root)
     heartbeat = memory_root / "heartbeat-state.json"
-    cold_root = memory_root / "cold"
     state = load_state(heartbeat)
     cold = ensure_cold_state(state)
     now = datetime.now().astimezone().isoformat(timespec="seconds")
@@ -183,9 +190,8 @@ def cmd_done(args: argparse.Namespace) -> int:
 
 
 def cmd_status(args: argparse.Namespace) -> int:
-    memory_root = resolve_memory_root(args.memory_root)
+    memory_root, cold_root = resolve_roots(args.memory_root)
     heartbeat = memory_root / "heartbeat-state.json"
-    cold_root = memory_root / "cold"
     state = load_state(heartbeat)
     cold = ensure_cold_state(state)
     state_counts, review_due_count = compute_cold_stats(cold_root)

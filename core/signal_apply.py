@@ -12,7 +12,7 @@ if str(SKILL_ROOT) not in sys.path:
 import argparse
 import re
 import sys
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -29,6 +29,8 @@ from core.common import (
     session_fingerprint,
     normalize_signal_history,
 )
+
+CONSECUTIVE_SESSION_WINDOW_DAYS = 14
 
 
 def slugify(text: str) -> str:
@@ -54,7 +56,7 @@ def find_note(notes: list[dict], target: str) -> dict | None:
     return None
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Apply a real-session activation event to a Hui-Yi note")
     parser.add_argument("note")
     parser.add_argument("--memory-root", default=None)
@@ -62,7 +64,7 @@ def main() -> int:
     parser.add_argument("--strength", choices=["weak", "medium", "strong"], default="medium")
     parser.add_argument("--activated-at", default=None, help="ISO date, defaults to today")
     parser.add_argument("--source", default="feedback_useful")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     memory_root = resolve_memory_root(args.memory_root)
     payload = load_tags_payload(memory_root)
@@ -77,7 +79,8 @@ def main() -> int:
         print(f"Backing note file missing: {note_path}", file=sys.stderr)
         return 1
 
-    activated_day = date.fromisoformat(args.activated_at).isoformat() if args.activated_at else date.today().isoformat()
+    activated_day_obj = date.fromisoformat(args.activated_at) if args.activated_at else date.today()
+    activated_day = activated_day_obj.isoformat()
     text = note_path.read_text(encoding="utf-8")
     signals = parse_session_signals(text)
 
@@ -93,17 +96,25 @@ def main() -> int:
         print(f"SKIP duplicate activation: {matched.get('title')} | {dedup_key}", file=sys.stderr)
         return 0
 
-    signals["current_session_hits"] = int(signals.get("current_session_hits", 0) or 0) + 1
+    last_session_key = matched.get("last_session_key")
+    same_session = last_session_key == session_hash
+    signals["current_session_hits"] = (int(signals.get("current_session_hits", 0) or 0) + 1) if same_session else 1
     strength_bump = {"weak": 1, "medium": 1, "strong": 2}[args.strength]
     signals["recent_session_hits"] = int(signals.get("recent_session_hits", 0) or 0) + strength_bump
 
-    last_session_key = matched.get("last_session_key")
-    if last_session_key != session_hash:
+    if not same_session:
         signals["cross_session_repeat_count"] = int(signals.get("cross_session_repeat_count", 0) or 0) + 1
-        if last_session_key:
+        last_activated = signals.get("last_activated")
+        within_window = False
+        if last_session_key and last_activated:
+            try:
+                within_window = date.fromisoformat(str(last_activated)) >= activated_day_obj - timedelta(days=CONSECUTIVE_SESSION_WINDOW_DAYS)
+            except ValueError:
+                within_window = False
+        if within_window:
             signals["consecutive_session_count"] = int(signals.get("consecutive_session_count", 0) or 0) + 1
         else:
-            signals["consecutive_session_count"] = max(1, int(signals.get("consecutive_session_count", 0) or 0))
+            signals["consecutive_session_count"] = 1
     else:
         signals["consecutive_session_count"] = max(1, int(signals.get("consecutive_session_count", 0) or 0))
 

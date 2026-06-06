@@ -30,10 +30,8 @@ from core.common import load_tags_payload, repetition_signal, resolve_memory_roo
 
 
 def run_apply(note_ref: str, memory_root: Path, session_key: str, strength: str, source: str, activated_at: str) -> int:
-    original_argv = sys.argv
-    try:
-        sys.argv = [
-            "signal_apply.py",
+    return signal_apply_main(
+        [
             note_ref,
             "--memory-root",
             str(memory_root),
@@ -46,9 +44,7 @@ def run_apply(note_ref: str, memory_root: Path, session_key: str, strength: str,
             "--activated-at",
             activated_at,
         ]
-        return signal_apply_main()
-    finally:
-        sys.argv = original_argv
+    )
 
 
 def collect_candidates(memory_root: Path, query_text: str, min_relevance: float, min_confidence: str, limit: int) -> tuple[list[dict], date]:
@@ -91,7 +87,7 @@ def apply_candidates(memory_root: Path, candidates: list[dict], session_key: str
     return applied
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Detect and optionally apply Hui-Yi session activation signals")
     parser.add_argument("--memory-root", default=None)
     parser.add_argument("--query", default=None)
@@ -103,7 +99,7 @@ def main() -> int:
     parser.add_argument("--min-confidence", choices=["low", "medium", "high"], default="medium")
     parser.add_argument("--apply", action="store_true", help="write weak activation signals back to matched notes")
     parser.add_argument("--json", action="store_true")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     query_text = load_context_text(args.query, args.context_file, args.stdin)
     if not query_text:
