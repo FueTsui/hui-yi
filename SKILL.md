@@ -1,10 +1,15 @@
 ---
 name: hui-yi
 description: >
-  Trigger for cold-memory recall and archive work under memory/cold/. Use for older
-  low-frequency context, historical continuity, resurfacing, cooling, rebuild, and
-  repetition-driven reinforcement. Do not use for fresh daily notes, stable high-frequency
-  facts, tooling/setup notes, or unvalidated new learnings.
+  Trigger for cold-memory recall and archive work under memory/cold/. Use only for
+  explicit requests about older low-frequency context, historical continuity,
+  resurfacing, cooling, rebuild, and repetition-driven reinforcement — not for any
+  casual mention of words like "archive" or "remember". Do not use for fresh daily
+  notes, stable high-frequency facts, tooling/setup notes, or unvalidated new
+  learnings. Also covers an optional opt-in hook (installed via
+  scripts/install_hook.py, enabled in openclaw.json only with --enable) that
+  accumulates Session signals from recall-related turns into memory/cold/ notes
+  and tags.json.
 ---
 
 # Hui Yi
@@ -73,6 +78,21 @@ Core modules:
 - `core/signal_pipeline.py`
 - `core/openclaw_signal_hook.py`
 - `core/openclaw_runtime_probe.py`
+
+## Disclosure
+
+- Scripts create and modify persistent local files, but only under `memory/cold/`
+  and `memory/heartbeat-state.json`. No network access, no credential access.
+- The hook is optional and twice opt-in: `scripts/install_hook.py` copies files
+  into `hooks/hui-yi-signal-hook/`, and only `--enable` flips the two
+  `hooks.internal.*` keys in `openclaw.json` (after printing a disclosure; it
+  refuses to create a missing config file).
+- The enabled hook persists session signals as activation counters plus truncated
+  sha256 session fingerprints — never raw session keys. Its `hook.log` by default
+  contains no message bodies and no raw user/chat ids (set `HUI_YI_HOOK_DEBUG=1`
+  for verbose diagnostics) and rotates at 256 KB.
+- The cooling playbook's routing table (MEMORY.md, TOOLS.md, .learnings/,
+  AGENTS.md, SOUL.md) is agent guidance; Hui-Yi scripts never write those files.
 
 ## Sanity check
 

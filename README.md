@@ -338,6 +338,7 @@ python scripts/install_hook.py --enable --config-path C:\path\to\openclaw.json
 - 为避免持久化原始聊天标识，session key 仅以短 `sha256:` fingerprint 形式写入 metadata，用于去重和重复激活判断
 - v1.2.9 起，signal 写回会顺手清洗旧版 `signal_history` 中的 raw session key；老用户也可以运行 `python scripts/scrub_metadata.py` 一次性清洗 legacy metadata
 - v1.2.10 起，OpenClaw signal hook 不再通过全局 `sys.argv` 串接 Python pipeline；TS hook 的 `signal_history` 迁移即使命中去重也会落盘，并收紧 heuristic fallback、日志截断和 session 连续计数语义；`scripts/cool.py --memory-root` 同时兼容 `memory/` 与 `memory/cold/` 两种路径。
+- v1.2.11 起，hook 默认日志做了隐私最小化：不再记录任何消息正文预览和原始 user/chat 标识，`triggered`/`completed` 日志里 scope 身份只以 `sessionHash` 哈希出现，`alive`/`skipped` 调试日志默认关闭（需 `HUI_YI_HOOK_DEBUG=1` 显式开启）；heuristic fallback 里过宽的 `remember` 触发收紧为回忆性短语；`install_hook.py --enable` 会先打印将修改的配置项披露，且在 `openclaw.json` 不存在时拒绝凭空新建；`manifest.yaml` 补全了 hooks 目录与 `openclaw.json` 的可选路径声明和用户警告。本版本无功能变更。
 
 ---
 

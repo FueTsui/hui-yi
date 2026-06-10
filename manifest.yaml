@@ -1,13 +1,57 @@
 name: hui-yi
-version: 1.2.10
-description: Manage a file-based cold-memory archive under memory/cold/.
+version: 1.2.11
+description: >-
+  Manage a file-based cold-memory archive under memory/cold/. Includes an
+  optional, explicitly opt-in local hook: scripts/install_hook.py copies a
+  bundled template into hooks/hui-yi-signal-hook/ and, only when run with
+  --enable, turns the hook on in openclaw.json. The enabled hook listens on
+  message:preprocessed events and writes Session signals back to memory/cold/
+  notes and memory/cold/tags.json. No network access; no credential access.
 required_paths:
   - path: memory/cold/
     access: read_write
-    description: Cold memory archive
+    description: Cold memory archive (notes, index.md, tags.json, retrieval-log.md)
   - path: memory/heartbeat-state.json
     access: read_write
     description: Heartbeat state with coldMemory metadata
+  - path: hooks/hui-yi-signal-hook/
+    access: read_write
+    optional: true
+    description: >-
+      Optional hook install target plus its local hook.log. Written only when
+      the user explicitly runs scripts/install_hook.py. Default hook logging
+      stores no message content and only hashed scope identifiers; verbose
+      diagnostics require HUI_YI_HOOK_DEBUG=1.
+  - path: ../openclaw.json
+    access: read_write
+    optional: true
+    description: >-
+      OpenClaw runtime config, one level above the workspace. Modified only
+      when the user explicitly runs scripts/install_hook.py --enable; the two
+      keys set are hooks.internal.enabled and
+      hooks.internal.entries.hui-yi-signal-hook.enabled. The installer prints
+      a disclosure first and refuses to create the file if it does not exist.
+permissions:
+  network: none
+  credentials: none
+  shell: none
+  environment: read_only  # reads OPENCLAW_WORKSPACE_DIR / HUI_YI_HOOK_DEBUG only
+user_warnings:
+  - This skill creates and modifies persistent local files under memory/cold/
+    (notes, index.md, tags.json, retrieval-log.md) and updates
+    memory/heartbeat-state.json during cooling runs.
+  - The optional hook, once installed and enabled, derives session_signals
+    (activation counters and hashed session fingerprints) from real
+    conversations and persists them in memory/cold/ note files and tags.json.
+    Session keys are stored only as truncated sha256 fingerprints.
+  - scripts/install_hook.py --enable modifies openclaw.json after printing a
+    disclosure of the exact keys it sets. Review with --dry-run first.
+  - The hook's local hook.log rotates at 256 KB and by default contains no
+    message bodies and no raw user/chat identifiers.
+  - Reference playbooks may suggest routing non-cold content to MEMORY.md,
+    TOOLS.md, .learnings/, AGENTS.md, or SOUL.md; that routing is guidance
+    executed by the agent at the user's direction. Hui-Yi scripts themselves
+    never write those files.
 creates_files: true
 modifies_files: true
 has_scripts: true

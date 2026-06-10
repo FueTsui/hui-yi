@@ -37,6 +37,19 @@
 - 将“候选命中”和“确认强化”分层处理
 - 允许 false negative，多于 false positive
 
+### 2.4 隐私原则（notice / minimization / retention）
+
+- **告知（notice）**：session_signals 的采集是显式 opt-in 的——hook 必须由用户运行
+  `install_hook.py` 安装，并用 `--enable` 启用（启用前打印披露）。`SKILL.md`、
+  `manifest.yaml`、`HOOK.md` 都声明了采集内容。
+- **最小化（minimization）**：写回 note / tags.json 的只有激活计数和日期；
+  `session_key` 只以截断 sha256 指纹落盘，原始 user/chat/thread 标识和消息正文
+  一律不持久化。默认 hook 日志同样不含正文预览和原始标识，详细诊断需要
+  `HUI_YI_HOOK_DEBUG=1` 显式开启。
+- **留存（retention）**：`signal_history` 每条 note 上限 20 条；hook.log 在 256KB
+  自动轮转；用户可随时删除 `hooks/hui-yi-signal-hook/hook.log`，或运行
+  `scripts/scrub_metadata.py` 清洗 legacy metadata。
+
 ---
 
 ## 3. 总体架构

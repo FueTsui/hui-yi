@@ -51,7 +51,11 @@ python3 skills/hui-yi/scripts/cool.py scan
 
 ### Pass 2：路由
 
-按类型放对地方：
+按类型放对地方。
+
+> 注意：下表是给 agent 的**路由建议**，由 agent 在主记忆层（OpenClaw 侧）按用户授权执行。
+> Hui-Yi 自身的脚本只读写 `memory/cold/` 和 `memory/heartbeat-state.json`，
+> 从不直接写 `MEMORY.md`、`TOOLS.md`、`.learnings/`、`AGENTS.md`、`SOUL.md`。
 
 | 内容 | 去哪 |
 |---|---|

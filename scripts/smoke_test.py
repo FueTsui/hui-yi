@@ -8,7 +8,7 @@ Runs non-destructive checks:
 - scheduler.py can produce JSON in preview mode for the configured schedule
 
 Usage:
-  python scripts/smoke_test.py [--memory-root PATH] [--query QUERY] [--schedule-id ID]
+  python scripts/smoke_test.py [--memory-root PATH] [--query QUERY] [--schedule-id ID] [--config PATH]
 """
 from __future__ import annotations
 
@@ -67,12 +67,15 @@ def main() -> int:
     parser.add_argument("--memory-root", default=None, help="optional cold memory root")
     parser.add_argument("--query", default="hui-yi", help="query used for search/scheduler checks")
     parser.add_argument("--schedule-id", default="daily-evening-review", help="schedule id to preview")
+    parser.add_argument("--config", default=None, help="optional scheduler config path; defaults to <memory-root>/schedule.json")
     args = parser.parse_args()
 
     memory_root = resolve_memory_root(args.memory_root)
+    config_path = Path(args.config).resolve() if args.config else memory_root / "schedule.json"
     print("Hui-Yi smoke test")
     print(f"skill root: {SKILL_ROOT}")
     print(f"memory root: {memory_root}")
+    print(f"schedule config: {config_path}")
 
     if not memory_root.exists():
         print(f"ERROR: memory root not found: {memory_root}")
@@ -94,6 +97,8 @@ def main() -> int:
                 py,
                 "scripts/scheduler.py",
                 *memory_args,
+                "--config",
+                str(config_path),
                 "--schedule-id",
                 args.schedule_id,
                 "--preview",

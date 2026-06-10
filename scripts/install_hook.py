@@ -40,6 +40,17 @@ def load_config(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def print_enable_disclosure(config_path: Path) -> None:
+    print("DISCLOSURE: --enable will modify the OpenClaw runtime configuration:")
+    print(f"  file: {config_path}")
+    print("  SET hooks.internal.enabled = true (if not already true)")
+    print(f"  SET hooks.internal.entries.{HOOK_NAME}.enabled = true (if not already true)")
+    print("  The enabled hook listens on message:preprocessed events and writes")
+    print("  Session signals to memory/cold/ notes and memory/cold/tags.json.")
+    print("  Default hook logs persist no message content and only hashed scope ids;")
+    print("  set HUI_YI_HOOK_DEBUG=1 to opt into verbose diagnostics.")
+
+
 def ensure_hook_enabled(config: dict) -> tuple[dict, list[str]]:
     notes: list[str] = []
     hooks = config.setdefault("hooks", {})
@@ -127,6 +138,10 @@ def main() -> int:
             else:
                 print(f"WOULD WRITE {destination} <- {source}")
         if args.enable:
+            print_enable_disclosure(config_path)
+            if not config_path.exists():
+                print(f"WOULD ABORT: config file not found: {config_path} (pass --config-path to the real openclaw.json)")
+                return 0
             config = load_config(config_path)
             _, notes = ensure_hook_enabled(config)
             if notes:
@@ -140,6 +155,11 @@ def main() -> int:
         print(write_file(destination, source, force=args.force))
 
     if args.enable:
+        print_enable_disclosure(config_path)
+        if not config_path.exists():
+            print(f"ERROR: config file not found: {config_path}", file=sys.stderr)
+            print("Refusing to create a new openclaw.json; pass --config-path to the real config file.", file=sys.stderr)
+            return 1
         config = load_config(config_path)
         config, notes = ensure_hook_enabled(config)
         write_config(config_path, config)

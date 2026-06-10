@@ -3,7 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 const FALLBACK_WORKSPACE_DIR = process.env.OPENCLAW_WORKSPACE_DIR || process.cwd();
-const HOOK_VERSION = "2026-05-07-sandboxed-signal-pipeline-v2";
+const HOOK_VERSION = "2026-06-10-privacy-minimized-logging-v3";
+// Set HUI_YI_HOOK_DEBUG=1 to restore verbose diagnostics (per-event alive/skipped
+// entries with raw identifiers and body previews). Default logging persists no
+// message content and only hashed scope identifiers.
+const DEBUG_LOG = process.env.HUI_YI_HOOK_DEBUG === "1";
 const MAX_LOG_BYTES = 256 * 1024;
 const KEEP_LOG_BYTES = 128 * 1024;
 const CONSECUTIVE_SESSION_WINDOW_DAYS = 14;
@@ -80,7 +84,9 @@ function looksLikeHuiYiIntent(text: string): boolean {
     /cool this down/i,
     /hui\s*-?yi/i,
     /cold memory/i,
-    /remember/i,
+    /do you remember/i,
+    /remember (?:when|what|how|that time)/i,
+    /as (?:we|i) (?:discussed|mentioned) (?:before|earlier|previously)/i,
     /what did we do before/i
   ];
   return patterns.some((pattern) => pattern.test(text));
@@ -655,21 +661,23 @@ function runSignalPipeline(workspaceDir: string, query: string, sessionKey: stri
 
 const handler = async (event: any) => {
   const bootstrapWorkspaceDir = resolveWorkspaceDir(event);
-  appendHookLog(bootstrapWorkspaceDir, {
-    ts: new Date().toISOString(),
-    stage: "alive",
-    hookVersion: HOOK_VERSION,
-    seenType: event?.type || null,
-    seenAction: event?.action || null,
-    contextDump: {
-      channelId: event?.context?.channelId ?? null,
-      from: event?.context?.from ?? null,
-      parsedFrom: parseFromAddress(event?.context?.from),
-      metadata: event?.context?.metadata ?? null,
-      hasBodyForAgent: typeof event?.context?.bodyForAgent === "string",
-      bodyPreview: typeof event?.context?.bodyForAgent === "string" ? event.context.bodyForAgent.slice(0, 120) : null
-    }
-  });
+  if (DEBUG_LOG) {
+    appendHookLog(bootstrapWorkspaceDir, {
+      ts: new Date().toISOString(),
+      stage: "alive",
+      hookVersion: HOOK_VERSION,
+      seenType: event?.type || null,
+      seenAction: event?.action || null,
+      contextDump: {
+        channelId: event?.context?.channelId ?? null,
+        from: event?.context?.from ?? null,
+        parsedFrom: parseFromAddress(event?.context?.from),
+        metadata: event?.context?.metadata ?? null,
+        hasBodyForAgent: typeof event?.context?.bodyForAgent === "string",
+        bodyPreview: typeof event?.context?.bodyForAgent === "string" ? event.context.bodyForAgent.slice(0, 120) : null
+      }
+    });
+  }
 
   if (event?.type !== "message" || event?.action !== "preprocessed") return;
   const body = String(event?.context?.bodyForAgent || "");
@@ -678,28 +686,32 @@ const handler = async (event: any) => {
   const heuristicIntent = looksLikeHuiYiIntent(body);
 
   if (!explicitSkillHit && !heuristicIntent) {
-    appendHookLog(workspaceDir, {
-      ts: new Date().toISOString(),
-      stage: "skipped",
-      hookVersion: HOOK_VERSION,
-      reason: "no_skill_hit_or_intent_match",
-      action: event?.action,
-      type: event?.type,
-      bodyPreview: body.slice(0, 200)
-    });
+    if (DEBUG_LOG) {
+      appendHookLog(workspaceDir, {
+        ts: new Date().toISOString(),
+        stage: "skipped",
+        hookVersion: HOOK_VERSION,
+        reason: "no_skill_hit_or_intent_match",
+        action: event?.action,
+        type: event?.type,
+        bodyPreview: body.slice(0, 200)
+      });
+    }
     return;
   }
 
   const scopeType = inferScopeType(event);
   const scopeId = inferScopeId(event, scopeType);
   if (!scopeId) {
-    appendHookLog(workspaceDir, {
-      ts: new Date().toISOString(),
-      stage: "skipped",
-      hookVersion: HOOK_VERSION,
-      reason: "missing_scope_id",
-      bodyPreview: body.slice(0, 200)
-    });
+    if (DEBUG_LOG) {
+      appendHookLog(workspaceDir, {
+        ts: new Date().toISOString(),
+        stage: "skipped",
+        hookVersion: HOOK_VERSION,
+        reason: "missing_scope_id",
+        bodyPreview: body.slice(0, 200)
+      });
+    }
     return;
   }
 
@@ -707,6 +719,9 @@ const handler = async (event: any) => {
   const channel = String(parsedFrom.channel || event?.context?.provider || event?.context?.channelId || "feishu");
   const threadId = typeof event?.context?.metadata?.threadId === "string" ? event.context.metadata.threadId : undefined;
 
+  const sessionKey = buildSessionKey(channel, scopeType, scopeId, threadId);
+  // Default logs keep only hashed scope material: raw scope/thread identifiers
+  // and message previews are persisted solely under HUI_YI_HOOK_DEBUG=1.
   appendHookLog(workspaceDir, {
     ts: new Date().toISOString(),
     stage: "triggered",
@@ -714,24 +729,26 @@ const handler = async (event: any) => {
     triggerSource: explicitSkillHit ? "skill_hit" : "heuristic_fallback",
     channel,
     scopeType,
-    scopeId,
-    threadId: threadId || null,
-    bodyPreview: body.slice(0, 200)
+    sessionHash: sessionFingerprint(sessionKey),
+    hasThread: Boolean(threadId),
+    ...(DEBUG_LOG
+      ? { scopeId, threadId: threadId || null, bodyPreview: body.slice(0, 200) }
+      : {})
   });
 
   try {
-    const sessionKey = buildSessionKey(channel, scopeType, scopeId, threadId);
     const result = runSignalPipeline(
       workspaceDir,
       body,
       sessionKey,
       explicitSkillHit ? "skill_hit" : "heuristic_fallback"
     );
+    const pipelineForLog = result.pipeline as Record<string, unknown>;
     appendHookLog(workspaceDir, {
       ts: new Date().toISOString(),
       stage: "completed",
       hookVersion: HOOK_VERSION,
-      result
+      result: DEBUG_LOG ? result : { ...result, pipeline: { ...pipelineForLog, query: undefined } }
     });
 
     const pipeline = result.pipeline as { applied?: string[]; candidates?: SignalCandidate[] };

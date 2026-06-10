@@ -14,9 +14,11 @@ if str(SKILL_ROOT) not in sys.path:
     sys.path.insert(0, str(SKILL_ROOT))
 
 import argparse
+import contextlib
 import json
 import sys
 from datetime import date
+from io import StringIO
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -29,22 +31,25 @@ from core.signal_detect import load_context_text, detect_match
 from core.common import load_tags_payload, repetition_signal, resolve_memory_root
 
 
-def run_apply(note_ref: str, memory_root: Path, session_key: str, strength: str, source: str, activated_at: str) -> int:
-    return signal_apply_main(
-        [
-            note_ref,
-            "--memory-root",
-            str(memory_root),
-            "--session-key",
-            session_key,
-            "--strength",
-            strength,
-            "--source",
-            source,
-            "--activated-at",
-            activated_at,
-        ]
-    )
+def run_apply(note_ref: str, memory_root: Path, session_key: str, strength: str, source: str, activated_at: str) -> tuple[int, str]:
+    stderr = StringIO()
+    with contextlib.redirect_stderr(stderr):
+        exit_code = signal_apply_main(
+            [
+                note_ref,
+                "--memory-root",
+                str(memory_root),
+                "--session-key",
+                session_key,
+                "--strength",
+                strength,
+                "--source",
+                source,
+                "--activated-at",
+                activated_at,
+            ]
+        )
+    return exit_code, stderr.getvalue().strip()
 
 
 def collect_candidates(memory_root: Path, query_text: str, min_relevance: float, min_confidence: str, limit: int) -> tuple[list[dict], date]:
@@ -70,21 +75,28 @@ def collect_candidates(memory_root: Path, query_text: str, min_relevance: float,
     return candidates[:limit], today
 
 
-def apply_candidates(memory_root: Path, candidates: list[dict], session_key: str, *, strength: str = "weak", source: str = "signal_pipeline", activated_at: str | None = None) -> list[str]:
+def apply_candidates(memory_root: Path, candidates: list[dict], session_key: str, *, strength: str = "weak", source: str = "signal_pipeline", activated_at: str | None = None) -> tuple[list[str], list[str], list[str]]:
     activated_at = activated_at or date.today().isoformat()
     applied = []
+    skipped = []
+    errors = []
     for item in candidates:
-        exit_code = run_apply(
-            item["path"] or item["title"] or "",
+        note_ref = item["path"] or item["title"] or ""
+        exit_code, message = run_apply(
+            note_ref,
             memory_root,
             session_key,
             strength=strength,
             source=source,
             activated_at=activated_at,
         )
-        if exit_code == 0:
-            applied.append(item["path"] or item["title"])
-    return applied
+        if exit_code == 0 and message.startswith("SKIP duplicate activation:"):
+            skipped.append(note_ref)
+        elif exit_code == 0:
+            applied.append(note_ref)
+        else:
+            errors.append(message or f"failed to apply signal to {note_ref}")
+    return applied, skipped, errors
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -110,11 +122,13 @@ def main(argv: list[str] | None = None) -> int:
     candidates, today = collect_candidates(memory_root, query_text, args.min_relevance, args.min_confidence, args.limit)
 
     applied = []
+    skipped = []
+    apply_errors = []
     if args.apply:
         if not args.session_key:
             print("--apply requires --session-key")
             return 1
-        applied = apply_candidates(
+        applied, skipped, apply_errors = apply_candidates(
             memory_root,
             candidates,
             args.session_key,
@@ -128,6 +142,8 @@ def main(argv: list[str] | None = None) -> int:
         "session_key": args.session_key,
         "candidates": candidates,
         "applied": applied,
+        "skipped": skipped,
+        "apply_errors": apply_errors,
     }
 
     if args.json:
@@ -148,6 +164,15 @@ def main(argv: list[str] | None = None) -> int:
         print("Applied weak activation to:")
         for item in applied:
             print(f"- {item}")
+    if skipped:
+        print("Skipped duplicate activation for:")
+        for item in skipped:
+            print(f"- {item}")
+    if apply_errors:
+        print("Signal apply errors:", file=sys.stderr)
+        for item in apply_errors:
+            print(f"- {item}", file=sys.stderr)
+        return 1
     return 0
 
 

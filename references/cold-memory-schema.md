@@ -35,6 +35,12 @@
 ## Use this when
 - 具体使用场景
 
+Triggers 书写规范（避免误触发）：
+- 用**多词短语**或专有名词，不要用单个常用词（"archive"、"remember"、"之前"、"cleanup" 都太宽）
+- 短语应能区分"提到这个主题"和"日常闲聊撞词"
+- 反例：`- 部署`、`- remember`
+- 正例：`- staging 部署回滚流程`、`- remember the postgres migration incident`
+
 ## Memory state
 - hot | warm | cold | dormant
 
